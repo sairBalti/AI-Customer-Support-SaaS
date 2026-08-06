@@ -1,0 +1,669 @@
+# Database Documentation
+# 03_Tables/usage_metrics.md
+
+# Table Specification: usage_metrics
+
+**Database:** ai_customer_support
+
+**Schema:** public
+
+**Table Name:** usage_metrics
+
+**Module:** Analytics & Usage Tracking
+
+**Owner:** Platform Analytics Team
+
+**Status:** Approved
+
+**Version:** 1.0
+
+**Classification:** Analytics / Billing
+
+---
+
+# Related Documents
+
+- 00_Overview.md
+- 01_Design_Principles.md
+- 02_ERD.md
+- companies.md
+- users.md
+- subscriptions.md
+- api_keys.md
+- ai_settings.md
+- chat_sessions.md
+- chat_messages.md
+- documents.md
+- tickets.md
+- audit_logs.md
+
+---
+
+# 1. Purpose
+
+The **usage_metrics** table stores aggregated platform usage statistics for each company.
+
+Unlike **audit_logs**, which records every business event, this table stores summarized usage data that powers:
+
+- Subscription limits
+- Billing calculations
+- AI token consumption
+- Analytics dashboards
+- Monthly reports
+- Usage alerts
+- Capacity planning
+- Customer success insights
+
+This table is optimized for reporting and should not store raw transactional events.
+
+---
+
+# 2. Business Responsibilities
+
+The usage_metrics table is responsible for
+
+- AI token tracking
+- Chat usage
+- API usage
+- Storage usage
+- User activity metrics
+- Billing metrics
+- Feature usage analytics
+- Subscription quota tracking
+
+---
+
+# 3. Business Rules
+
+### Rule 1
+
+Every usage record belongs to one company.
+
+---
+
+### Rule 2
+
+Usage is aggregated by reporting period.
+
+---
+
+### Rule 3
+
+Historical metrics are immutable.
+
+---
+
+### Rule 4
+
+Metrics are updated asynchronously.
+
+---
+
+### Rule 5
+
+Usage metrics must never block application requests.
+
+---
+
+### Rule 6
+
+Usage counters can only increase during an active reporting period.
+
+---
+
+### Rule 7
+
+Subscription quota validation reads from current usage metrics.
+
+---
+
+### Rule 8
+
+Metrics are retained for long-term reporting.
+
+---
+
+# 4. Relationships
+
+```
+Company
+    │
+    ├── Subscription
+    │
+    ├── Usage Metrics
+    │
+    ├── Chat Sessions
+    ├── Documents
+    ├── API Keys
+    ├── Tickets
+    └── Audit Logs
+```
+
+---
+
+# 5. Metric Lifecycle
+
+```
+Business Event
+
+↓
+
+Queue
+
+↓
+
+Analytics Worker
+
+↓
+
+Aggregate Metrics
+
+↓
+
+Update Usage Record
+
+↓
+
+Dashboard
+
+↓
+
+Billing
+
+↓
+
+Reports
+```
+
+---
+
+# 6. Columns
+
+| Column | Type | Nullable | Default | Description |
+|---------|------|----------|----------|-------------|
+| usage_metric_id | BIGINT | No | Auto Increment | Primary Key |
+| company_id | BIGINT | No | — | Company |
+| usage_uuid | CHAR(36) | No | UUID | Public identifier |
+| reporting_year | SMALLINT | No | — | Calendar year |
+| reporting_month | TINYINT | No | — | Calendar month |
+| reporting_date | DATE | No | — | Aggregation date |
+| active_users | INT | No | 0 | Active users |
+| total_logins | BIGINT | No | 0 | Login count |
+| chat_sessions | BIGINT | No | 0 | AI conversations |
+| chat_messages | BIGINT | No | 0 | Chat messages |
+| ai_requests | BIGINT | No | 0 | AI requests |
+| ai_input_tokens | BIGINT | No | 0 | Prompt tokens |
+| ai_output_tokens | BIGINT | No | 0 | Completion tokens |
+| total_ai_tokens | BIGINT | No | 0 | Total tokens |
+| embedding_requests | BIGINT | No | 0 | Embedding API calls |
+| documents_uploaded | BIGINT | No | 0 | Uploaded documents |
+| documents_processed | BIGINT | No | 0 | Indexed documents |
+| knowledge_chunks | BIGINT | No | 0 | Generated chunks |
+| api_requests | BIGINT | No | 0 | API requests |
+| tickets_created | BIGINT | No | 0 | Support tickets |
+| tickets_resolved | BIGINT | No | 0 | Closed tickets |
+| storage_used_bytes | BIGINT | No | 0 | Storage usage |
+| bandwidth_bytes | BIGINT | No | 0 | Download bandwidth |
+| estimated_ai_cost | DECIMAL(12,4) | No | 0.0000 | Estimated AI cost |
+| metadata | JSON | Yes | NULL | Additional analytics |
+| created_at | TIMESTAMP | No | CURRENT_TIMESTAMP | Created |
+| updated_at | TIMESTAMP | No | CURRENT_TIMESTAMP | Updated |
+
+---
+
+# 7. Primary Key
+
+```
+usage_metric_id
+```
+
+---
+
+# 8. Foreign Keys
+
+## Company
+
+```
+company_id
+
+↓
+
+companies.company_id
+```
+
+Delete Rule
+
+```
+CASCADE
+```
+
+---
+
+# 9. Unique Constraints
+
+One record per company per reporting period.
+
+```
+(company_id,
+reporting_year,
+reporting_month)
+```
+
+```
+usage_uuid
+```
+
+---
+
+# 10. Indexes
+
+Primary
+
+```
+usage_metric_id
+```
+
+Unique
+
+```
+usage_uuid
+```
+
+Composite
+
+```
+(company_id,
+reporting_year,
+reporting_month)
+```
+
+Indexes
+
+```
+company_id
+
+reporting_year
+
+reporting_month
+
+reporting_date
+
+estimated_ai_cost
+
+updated_at
+```
+
+---
+
+# 11. Validation Rules
+
+Reporting Month
+
+```
+1
+
+↓
+
+12
+```
+
+---
+
+Reporting Year
+
+```
+>= 2025
+```
+
+---
+
+Token Counts
+
+Must be zero or greater.
+
+---
+
+Storage Usage
+
+Cannot be negative.
+
+---
+
+Estimated Cost
+
+Must be greater than or equal to zero.
+
+---
+
+# 12. Usage Collection Flow
+
+```
+Customer Request
+
+↓
+
+Business Event
+
+↓
+
+Analytics Queue
+
+↓
+
+Aggregation Worker
+
+↓
+
+Update Usage Metrics
+
+↓
+
+Dashboard
+
+↓
+
+Subscription Validation
+
+↓
+
+Billing
+```
+
+---
+
+# 13. CRUD Operations
+
+## Create
+
+Automatically created for new reporting periods.
+
+---
+
+## Read
+
+Analytics
+
+Billing
+
+Reports
+
+Dashboard
+
+---
+
+## Update
+
+Increment counters only.
+
+---
+
+## Delete
+
+Not supported.
+
+Archive only.
+
+---
+
+# 14. SQLAlchemy Model Example
+
+```python
+class UsageMetric(Base):
+
+    __tablename__ = "usage_metrics"
+
+    usage_metric_id = mapped_column(
+        BigInteger,
+        primary_key=True
+    )
+
+    company_id = mapped_column(
+        ForeignKey("companies.company_id"),
+        nullable=False
+    )
+
+    usage_uuid = mapped_column(
+        String(36),
+        unique=True
+    )
+```
+
+---
+
+# 15. Repository Responsibilities
+
+UsageMetricRepository
+
+- Create reporting period
+- Get current usage
+- Increment counters
+- Get monthly usage
+- Get yearly usage
+- Generate reports
+- Aggregate metrics
+- Archive old metrics
+
+---
+
+# 16. Service Responsibilities
+
+UsageMetricService
+
+- Track AI tokens
+- Track API usage
+- Track storage usage
+- Track chat usage
+- Calculate AI costs
+- Validate subscription limits
+- Generate dashboards
+- Export analytics
+
+---
+
+# 17. Related API Endpoints
+
+```
+GET    /api/v1/usage
+
+GET    /api/v1/usage/current
+
+GET    /api/v1/usage/monthly
+
+GET    /api/v1/usage/yearly
+
+GET    /api/v1/usage/dashboard
+
+GET    /api/v1/usage/export
+```
+
+---
+
+# 18. Sample Record
+
+```json
+{
+  "company_id": 1,
+  "reporting_year": 2026,
+  "reporting_month": 8,
+  "chat_sessions": 924,
+  "chat_messages": 8452,
+  "ai_requests": 8131,
+  "ai_input_tokens": 18243124,
+  "ai_output_tokens": 5219423,
+  "total_ai_tokens": 23462547,
+  "estimated_ai_cost": 112.48,
+  "storage_used_bytes": 748324392
+}
+```
+
+---
+
+# 19. Metrics Dashboard
+
+Example KPIs
+
+```
+Monthly AI Requests
+
+Average Response Time
+
+Monthly AI Cost
+
+Total Active Users
+
+Storage Usage
+
+Support Tickets
+
+Documents Uploaded
+
+Knowledge Base Size
+
+API Calls
+
+Monthly Growth
+```
+
+---
+
+# 20. AI Cost Calculation
+
+Example
+
+```
+Input Tokens
+
+×
+
+Provider Rate
+
++
+
+Output Tokens
+
+×
+
+Provider Rate
+
+=
+
+Estimated Cost
+```
+
+The calculation should support different providers and pricing models.
+
+---
+
+# 21. Security Considerations
+
+- Enforce tenant isolation.
+- Do not expose other companies' analytics.
+- Restrict billing metrics to authorized users.
+- Validate reporting permissions.
+- Audit metric corrections.
+- Protect exported reports.
+
+---
+
+# 22. Performance Considerations
+
+- Update metrics asynchronously.
+- Cache dashboard queries.
+- Partition historical data.
+- Archive old reporting periods.
+- Batch aggregation jobs.
+- Avoid updating counters synchronously on every request.
+
+---
+
+# 23. Future Enhancements
+
+- Daily usage summaries
+- Hourly analytics
+- Department-level analytics
+- AI model comparison
+- Cost forecasting
+- Predictive usage alerts
+- Carbon footprint reporting
+- Regional analytics
+- Business intelligence integration
+- Real-time dashboards
+
+---
+
+# 24. Cursor AI Instructions
+
+When generating code for `usage_metrics`:
+
+1. Never calculate analytics synchronously inside API requests.
+2. Update counters through background workers.
+3. Store aggregated—not raw—usage.
+4. Cache dashboard responses.
+5. Support multiple reporting periods.
+6. Integrate with subscription limits.
+7. Calculate AI costs independently of providers.
+8. Keep ORM models, migrations, repositories, services, and documentation synchronized.
+
+---
+
+# 25. Definition of Done
+
+The `usage_metrics` implementation is complete when:
+
+- Migration created
+- SQLAlchemy model implemented
+- Repository implemented
+- Service implemented
+- Analytics worker implemented
+- AI cost calculator implemented
+- Dashboard endpoints implemented
+- Subscription integration completed
+- Reporting implemented
+- Unit tests passing
+- Integration tests passing
+- Documentation updated
+
+---
+
+# 26. Architecture Notes
+
+Recommended analytics architecture
+
+```
+Application Events
+
+↓
+
+Message Queue
+
+↓
+
+Analytics Worker
+
+↓
+
+Usage Aggregator
+
+↓
+
+usage_metrics
+
+↓
+
+Dashboard API
+
+↓
+
+Reports
+
+↓
+
+Billing Engine
+```
+
+The **usage_metrics** table is the primary source for operational analytics, subscription enforcement, and billing insights. It should remain highly optimized for read-heavy workloads, support long-term reporting, and integrate seamlessly with background processing, AI cost tracking, and business intelligence systems.
+
+---
+
+# End of Document
+

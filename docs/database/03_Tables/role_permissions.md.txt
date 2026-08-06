@@ -1,0 +1,617 @@
+# Database Documentation
+# 03_Tables/role_permissions.md
+
+# Table Specification: role_permissions
+
+**Database:** ai_customer_support
+
+**Schema:** public
+
+**Table Name:** role_permissions
+
+**Module:** Authentication & Authorization (RBAC)
+
+**Owner:** Platform Core
+
+**Status:** Approved
+
+**Version:** 1.0
+
+**Related Documents**
+
+- 00_Overview.md
+- 01_Design_Principles.md
+- 02_ERD.md
+- roles.md
+- permissions.md
+- users.md
+
+---
+
+# 1. Purpose
+
+The **role_permissions** table is a junction (bridge) table that implements the **many-to-many relationship** between `roles` and `permissions`.
+
+It defines which permissions are granted to each role.
+
+Instead of hardcoding permissions into application logic, every authorization decision should reference this table.
+
+---
+
+# 2. Why This Table Exists
+
+A role can have many permissions.
+
+A permission can belong to many roles.
+
+Relationship
+
+```
+Roles
+
+*
+
+↓
+
+Role Permissions
+
+↑
+
+*
+
+Permissions
+```
+
+Without this table:
+
+- Authorization becomes hardcoded.
+- Custom roles become difficult.
+- Enterprise features become limited.
+
+---
+
+# 3. Business Responsibilities
+
+This table is responsible for:
+
+- Assigning permissions to roles
+- Supporting RBAC
+- Permission inheritance
+- Authorization mapping
+- Future custom roles
+- Dynamic access control
+
+---
+
+# 4. Business Rules
+
+### Rule 1
+
+Every record must reference a valid role.
+
+---
+
+### Rule 2
+
+Every record must reference a valid permission.
+
+---
+
+### Rule 3
+
+Duplicate mappings are not allowed.
+
+---
+
+### Rule 4
+
+System mappings can only be modified by Super Administrators.
+
+---
+
+### Rule 5
+
+Removing a permission immediately revokes access for every affected role.
+
+---
+
+### Rule 6
+
+Permission changes should invalidate the authorization cache.
+
+---
+
+# 5. Relationships
+
+```
+Roles
+
+│
+
+├────────────┐
+
+│            │
+
+▼            ▼
+
+Role Permissions
+
+▲            ▲
+
+│            │
+
+└────────────┘
+
+Permissions
+```
+
+---
+
+# 6. Columns
+
+| Column | Type | Nullable | Default | Description |
+|----------|------|----------|----------|-------------|
+| role_permission_id | BIGINT | No | Auto Increment | Primary Key |
+| role_id | INT | No | — | Role reference |
+| permission_id | INT | No | — | Permission reference |
+| granted_by | BIGINT | Yes | NULL | User who assigned permission |
+| created_at | TIMESTAMP | No | CURRENT_TIMESTAMP | Assignment timestamp |
+
+---
+
+# 7. Primary Key
+
+```
+role_permission_id
+```
+
+Type
+
+```
+BIGINT AUTO_INCREMENT
+```
+
+---
+
+# 8. Foreign Keys
+
+### Role
+
+```
+role_id
+
+↓
+
+roles.role_id
+```
+
+Delete Rule
+
+```
+RESTRICT
+```
+
+---
+
+### Permission
+
+```
+permission_id
+
+↓
+
+permissions.permission_id
+```
+
+Delete Rule
+
+```
+RESTRICT
+```
+
+---
+
+### Granted By
+
+```
+granted_by
+
+↓
+
+users.user_id
+```
+
+Delete Rule
+
+```
+SET NULL
+```
+
+This preserves historical assignment information even if the assigning user is removed.
+
+---
+
+# 9. Unique Constraints
+
+Each role-permission combination may exist only once.
+
+```
+(role_id, permission_id)
+```
+
+---
+
+# 10. Indexes
+
+Primary
+
+```
+role_permission_id
+```
+
+Indexes
+
+```
+role_id
+
+permission_id
+
+granted_by
+```
+
+Composite
+
+```
+(role_id, permission_id)
+
+(permission_id, role_id)
+```
+
+---
+
+# 11. Validation Rules
+
+Role
+
+- Required
+- Must exist
+- Must be active
+
+---
+
+Permission
+
+- Required
+- Must exist
+- Must be active
+
+---
+
+Duplicate assignments are prohibited.
+
+---
+
+# 12. CRUD Operations
+
+## Create
+
+Assign permission to role.
+
+---
+
+## Read
+
+Retrieve permissions by role.
+
+Retrieve roles by permission.
+
+---
+
+## Update
+
+Normally not required.
+
+Permission assignments are managed by deleting and recreating mappings.
+
+---
+
+## Delete
+
+Remove permission assignment.
+
+System mappings require elevated privileges.
+
+---
+
+# 13. SQLAlchemy Model Example
+
+```python
+class RolePermission(Base):
+    __tablename__ = "role_permissions"
+
+    role_permission_id = mapped_column(
+        BigInteger,
+        primary_key=True
+    )
+
+    role_id = mapped_column(
+        ForeignKey("roles.role_id"),
+        nullable=False
+    )
+
+    permission_id = mapped_column(
+        ForeignKey("permissions.permission_id"),
+        nullable=False
+    )
+
+    granted_by = mapped_column(
+        ForeignKey("users.user_id"),
+        nullable=True
+    )
+
+    role = relationship(
+        "Role",
+        back_populates="role_permissions"
+    )
+
+    permission = relationship(
+        "Permission",
+        back_populates="role_permissions"
+    )
+```
+
+---
+
+# 14. Repository Responsibilities
+
+The RolePermissionRepository should provide:
+
+- Assign permission
+- Remove permission
+- Get permissions by role
+- Get roles by permission
+- Replace role permissions
+- Count permissions
+- Validate mapping existence
+
+Repositories must not contain authorization logic.
+
+---
+
+# 15. Service Responsibilities
+
+The RolePermissionService is responsible for:
+
+- Assigning permissions
+- Removing permissions
+- Preventing duplicate mappings
+- Protecting system mappings
+- Invalidating permission cache
+- Auditing permission changes
+
+---
+
+# 16. Related API Endpoints
+
+```
+GET    /api/v1/roles/{id}/permissions
+
+PUT    /api/v1/roles/{id}/permissions
+
+POST   /api/v1/roles/{id}/permissions
+
+DELETE /api/v1/roles/{id}/permissions/{permissionId}
+```
+
+---
+
+# 17. Sample Records
+
+```json
+[
+  {
+    "role_permission_id": 1,
+    "role_id": 1,
+    "permission_id": 1
+  },
+  {
+    "role_permission_id": 2,
+    "role_id": 1,
+    "permission_id": 2
+  },
+  {
+    "role_permission_id": 3,
+    "role_id": 2,
+    "permission_id": 15
+  }
+]
+```
+
+---
+
+# 18. Default Role Mapping
+
+## SUPER_ADMIN
+
+Receives:
+
+- All permissions
+
+---
+
+## COMPANY_ADMIN
+
+Receives:
+
+- Company management
+- User management
+- Documents
+- AI configuration
+- Analytics
+- Ticket management
+
+Cannot:
+
+- Manage platform-wide settings
+- Manage other companies
+
+---
+
+## SUPPORT_MANAGER
+
+Receives:
+
+- Ticket management
+- Chat monitoring
+- Agent management
+- Dashboard access
+
+---
+
+## SUPPORT_AGENT
+
+Receives:
+
+- Assigned tickets
+- Customer chat
+- Internal notes
+
+Cannot:
+
+- Manage company settings
+- Delete users
+
+---
+
+## CUSTOMER
+
+Receives:
+
+- Start chat
+- View own conversations
+- View own tickets
+- Update profile
+
+---
+
+# 19. Authorization Flow
+
+```
+User Login
+
+↓
+
+Load Role
+
+↓
+
+Load Permissions
+
+↓
+
+Cache Permissions
+
+↓
+
+Incoming API Request
+
+↓
+
+Permission Check
+
+↓
+
+Allow / Deny
+```
+
+Permissions should be loaded once and cached for the duration of the request.
+
+---
+
+# 20. Security Considerations
+
+- Only authorized administrators may change role mappings.
+- Every change must generate an audit log.
+- Never trust permissions sent by the client.
+- Refresh caches immediately after updates.
+- Prevent duplicate mappings through database constraints.
+
+---
+
+# 21. Performance Considerations
+
+- Cache role-permission mappings in Redis.
+- Batch-load permissions to avoid N+1 queries.
+- Use indexed lookups for authorization.
+- Minimize database access by caching resolved permissions per request.
+
+---
+
+# 22. Future Enhancements
+
+- Company-specific custom role mappings
+- Temporary permission grants
+- Expiring permissions
+- Conditional permissions
+- Hierarchical role inheritance
+- Permission bundles
+- Feature flag integration
+
+---
+
+# 23. Cursor AI Instructions
+
+When generating RBAC code:
+
+1. Never hardcode permissions in controllers.
+2. Always resolve permissions through `role_permissions`.
+3. Enforce the unique `(role_id, permission_id)` constraint.
+4. Invalidate caches after permission changes.
+5. Keep ORM models, seed data, migrations, and documentation synchronized.
+
+---
+
+# 24. Definition of Done
+
+The `role_permissions` table implementation is complete when:
+
+- Migration created
+- SQLAlchemy model implemented
+- Seed mappings created
+- Repository implemented
+- Service implemented
+- API endpoints implemented
+- Authorization middleware integrated
+- Cache invalidation implemented
+- Audit logging implemented
+- Unit tests passing
+- Integration tests passing
+- Documentation updated
+
+---
+
+# 25. Recommended Default Permission Matrix
+
+| Permission | Super Admin | Company Admin | Support Manager | Support Agent | Customer |
+|------------|:-----------:|:-------------:|:---------------:|:-------------:|:--------:|
+| users.create | ✅ | ✅ | ❌ | ❌ | ❌ |
+| users.read | ✅ | ✅ | ✅ | ❌ | ❌ |
+| users.update | ✅ | ✅ | ❌ | ❌ | ❌ |
+| users.delete | ✅ | ✅ | ❌ | ❌ | ❌ |
+| documents.upload | ✅ | ✅ | ✅ | ❌ | ❌ |
+| documents.read | ✅ | ✅ | ✅ | ✅ | ❌ |
+| tickets.create | ✅ | ✅ | ✅ | ✅ | ✅ *(own)* |
+| tickets.assign | ✅ | ✅ | ✅ | ❌ | ❌ |
+| tickets.reply | ✅ | ✅ | ✅ | ✅ | ✅ *(own)* |
+| tickets.close | ✅ | ✅ | ✅ | ✅ *(assigned)* | ❌ |
+| chat.start | ✅ | ✅ | ✅ | ❌ | ✅ |
+| chat.read | ✅ | ✅ | ✅ | ✅ | ✅ *(own)* |
+| analytics.view | ✅ | ✅ | ✅ | ❌ | ❌ |
+| ai.configure | ✅ | ✅ | ❌ | ❌ | ❌ |
+| audit.view | ✅ | ❌ | ❌ | ❌ | ❌ |
+
+> **Note:** Ownership-based permissions (such as "own tickets" or "own chats") should be enforced in the service layer after the permission check.
+
+---
+
+# End of Document

@@ -1,0 +1,538 @@
+# Database Documentation
+# 03_Tables/roles.md
+
+# Table Specification: roles
+
+**Database:** ai_customer_support
+
+**Schema:** public
+
+**Table Name:** roles
+
+**Module:** Authentication & Authorization (RBAC)
+
+**Owner:** Platform Core
+
+**Status:** Approved
+
+**Version:** 1.0
+
+**Related Documents**
+
+- 00_Overview.md
+- 01_Design_Principles.md
+- 02_ERD.md
+- users.md
+- permissions.md *(Future)*
+- role_permissions.md *(Future)*
+
+---
+
+# 1. Purpose
+
+The **roles** table defines the available user roles within the platform.
+
+It is a core component of the **Role-Based Access Control (RBAC)** system.
+
+Each user is assigned **exactly one role**, and each role grants a predefined set of permissions.
+
+The `roles` table contains only role metadata. Individual permissions are managed through the `permissions` and `role_permissions` tables.
+
+---
+
+# 2. Business Responsibilities
+
+The roles table is responsible for:
+
+- Defining user roles
+- Supporting RBAC
+- Organizing permission groups
+- Restricting feature access
+- Supporting future custom roles
+- Providing authorization metadata
+
+---
+
+# 3. Business Rules
+
+### Rule 1
+
+Each role must have a unique name.
+
+---
+
+### Rule 2
+
+Each user must have one role.
+
+---
+
+### Rule 3
+
+Roles cannot be deleted while users are assigned to them.
+
+---
+
+### Rule 4
+
+System roles are protected and cannot be removed.
+
+---
+
+### Rule 5
+
+Only Super Administrators may create or modify system roles.
+
+---
+
+### Rule 6
+
+Role names are immutable after production deployment unless handled through a controlled migration.
+
+---
+
+### Rule 7
+
+Inactive roles cannot be assigned to users.
+
+---
+
+# 4. Relationships
+
+```
+Roles
+
+│
+
+├── Users
+
+└── Role Permissions (Future)
+
+        │
+
+        └── Permissions (Future)
+```
+
+---
+
+# 5. Default System Roles
+
+The platform includes the following predefined roles.
+
+| Role | Description |
+|-------|-------------|
+| SUPER_ADMIN | Platform administrator |
+| COMPANY_ADMIN | Company owner or administrator |
+| SUPPORT_MANAGER | Manages support agents |
+| SUPPORT_AGENT | Handles customer tickets |
+| CUSTOMER | End customer using chat |
+
+These roles are seeded during initial deployment.
+
+---
+
+# 6. Columns
+
+| Column | Type | Nullable | Default | Description |
+|----------|------|----------|----------|-------------|
+| role_id | INT | No | Auto Increment | Primary Key |
+| role_name | VARCHAR(100) | No | — | Internal role name |
+| display_name | VARCHAR(150) | No | — | Human-readable name |
+| description | TEXT | Yes | NULL | Role description |
+| is_system_role | BOOLEAN | No | TRUE | Platform-managed role |
+| is_active | BOOLEAN | No | TRUE | Available for assignment |
+| sort_order | INT | No | 0 | UI ordering |
+| created_at | TIMESTAMP | No | CURRENT_TIMESTAMP | Created date |
+| updated_at | TIMESTAMP | No | CURRENT_TIMESTAMP | Last updated |
+
+---
+
+# 7. Enumerated Default Values
+
+Recommended seeded values:
+
+| role_name | display_name |
+|------------|--------------|
+| SUPER_ADMIN | Super Administrator |
+| COMPANY_ADMIN | Company Administrator |
+| SUPPORT_MANAGER | Support Manager |
+| SUPPORT_AGENT | Support Agent |
+| CUSTOMER | Customer |
+
+---
+
+# 8. Primary Key
+
+```
+role_id
+```
+
+Type
+
+```
+INT AUTO_INCREMENT
+```
+
+---
+
+# 9. Unique Constraints
+
+```
+role_name
+```
+
+```
+display_name
+```
+
+---
+
+# 10. Indexes
+
+Primary
+
+```
+role_id
+```
+
+Unique
+
+```
+role_name
+```
+
+```
+display_name
+```
+
+Indexes
+
+```
+is_system_role
+
+is_active
+
+sort_order
+```
+
+Composite
+
+```
+(is_active, sort_order)
+```
+
+---
+
+# 11. Validation Rules
+
+## Role Name
+
+- Required
+- Uppercase with underscores recommended
+- Maximum 100 characters
+- Unique
+
+Examples
+
+```
+SUPER_ADMIN
+
+COMPANY_ADMIN
+
+SUPPORT_AGENT
+```
+
+---
+
+## Display Name
+
+- Required
+- Maximum 150 characters
+- Human readable
+- Unique
+
+---
+
+## Description
+
+Optional
+
+Maximum 1000 characters.
+
+---
+
+## Sort Order
+
+Must be zero or greater.
+
+---
+
+# 12. Lifecycle
+
+```
+Seed Role
+
+↓
+
+Active
+
+↓
+
+Inactive
+
+↓
+
+Archived (Future)
+```
+
+System roles should never be physically deleted.
+
+---
+
+# 13. CRUD Operations
+
+## Create
+
+Create custom role *(future enterprise feature).*
+
+---
+
+## Read
+
+Retrieve role information.
+
+---
+
+## Update
+
+Modify metadata.
+
+System roles require Super Administrator privileges.
+
+---
+
+## Delete
+
+Allowed only if:
+
+- Not a system role.
+- No users are assigned.
+- No active permission mappings exist.
+
+---
+
+# 14. SQLAlchemy Model Example
+
+```python
+class Role(Base):
+    __tablename__ = "roles"
+
+    role_id = mapped_column(
+        Integer,
+        primary_key=True
+    )
+
+    role_name = mapped_column(
+        String(100),
+        unique=True,
+        nullable=False
+    )
+
+    display_name = mapped_column(
+        String(150),
+        nullable=False
+    )
+
+    users = relationship(
+        "User",
+        back_populates="role"
+    )
+```
+
+---
+
+# 15. Repository Responsibilities
+
+The RoleRepository should provide:
+
+- Create role
+- Get by ID
+- Get by name
+- List active roles
+- List system roles
+- Update role
+- Disable role
+- Search roles
+
+Repository methods must not enforce authorization rules.
+
+---
+
+# 16. Service Responsibilities
+
+The RoleService is responsible for:
+
+- Validating role uniqueness
+- Preventing modification of protected roles
+- Assigning permissions (future)
+- Validating role assignment
+- Enforcing RBAC business rules
+
+---
+
+# 17. Related API Endpoints
+
+```
+GET    /api/v1/roles
+
+GET    /api/v1/roles/{id}
+
+POST   /api/v1/roles
+
+PUT    /api/v1/roles/{id}
+
+PATCH  /api/v1/roles/{id}/status
+
+DELETE /api/v1/roles/{id}
+```
+
+---
+
+# 18. Seed Data
+
+```json
+[
+  {
+    "role_name": "SUPER_ADMIN",
+    "display_name": "Super Administrator"
+  },
+  {
+    "role_name": "COMPANY_ADMIN",
+    "display_name": "Company Administrator"
+  },
+  {
+    "role_name": "SUPPORT_MANAGER",
+    "display_name": "Support Manager"
+  },
+  {
+    "role_name": "SUPPORT_AGENT",
+    "display_name": "Support Agent"
+  },
+  {
+    "role_name": "CUSTOMER",
+    "display_name": "Customer"
+  }
+]
+```
+
+---
+
+# 19. Security Considerations
+
+- Role modification requires elevated privileges.
+- System roles cannot be deleted through standard APIs.
+- All role changes must be recorded in `audit_logs`.
+- Authorization decisions should never rely on role names alone; use permissions where available.
+
+---
+
+# 20. Performance Considerations
+
+- Cache active roles in Redis.
+- Cache role-permission mappings.
+- Roles change infrequently, making them ideal cache candidates.
+- Refresh cache after updates.
+
+---
+
+# 21. Future Enhancements
+
+Future additions:
+
+- permissions table
+- role_permissions table
+- custom company roles
+- hierarchical roles
+- role inheritance
+- temporary role assignment
+- approval workflows
+- permission categories
+
+---
+
+# 22. Cursor AI Instructions
+
+When generating code for `roles`:
+
+1. Do not hardcode role IDs.
+2. Reference roles by stable identifiers (e.g., `role_name`) in seed logic.
+3. Protect system roles from deletion.
+4. Keep seed data synchronized with migrations.
+5. Integrate with the RBAC authorization layer.
+6. Update documentation when new roles are introduced.
+
+---
+
+# 23. Definition of Done
+
+The `roles` table implementation is complete when:
+
+- Migration created
+- SQLAlchemy model implemented
+- Seed migration created
+- Repository implemented
+- Service implemented
+- API endpoints implemented
+- Role validation completed
+- Audit logging integrated
+- Unit tests passing
+- Integration tests passing
+- Documentation updated
+
+---
+
+# 24. Recommended Future RBAC Schema
+
+For enterprise-grade authorization, implement the following tables:
+
+```
+roles
+   │
+   ├──────────────┐
+                  │
+                  ▼
+         role_permissions
+                  │
+                  ▼
+            permissions
+```
+
+Example permissions:
+
+```
+users.create
+users.read
+users.update
+users.delete
+
+companies.manage
+
+documents.upload
+documents.delete
+
+tickets.assign
+tickets.close
+
+chat.view
+
+analytics.view
+
+settings.manage
+```
+
+This design allows adding or removing capabilities without changing application code or creating new roles.
+
+---
+
+# End of Document
+

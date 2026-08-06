@@ -1,0 +1,584 @@
+# Database Documentation
+# 03_Tables/companies.md
+
+# Table Specification: companies
+
+**Database:** ai_customer_support
+
+**Schema:** public
+
+**Table Name:** companies
+
+**Module:** Company Management
+
+**Owner:** Platform Core
+
+**Status:** Approved
+
+**Version:** 1.0
+
+**Related Documents**
+
+- 00_Overview.md
+- 01_Design_Principles.md
+- 02_ERD.md
+- users.md
+- ai_settings.md
+- audit_logs.md
+
+---
+
+# 1. Purpose
+
+The **companies** table is the root entity of the SaaS platform.
+
+Every customer organization (tenant) that registers on the platform owns one record in this table.
+
+Every tenant-specific resource references **company_id**.
+
+Examples
+
+- Users
+- Documents
+- Chat Sessions
+- Tickets
+- AI Settings
+- Audit Logs
+
+This table is one of the most important tables in the entire system.
+
+---
+
+# 2. Business Responsibilities
+
+The companies table is responsible for:
+
+- Company registration
+- Company profile
+- Subscription management
+- Company branding
+- Company status
+- Tenant isolation
+- AI ownership
+- Analytics ownership
+
+---
+
+# 3. Business Rules
+
+### Rule 1
+
+Each company represents exactly one tenant.
+
+---
+
+### Rule 2
+
+A company can own many users.
+
+---
+
+### Rule 3
+
+A company can own many documents.
+
+---
+
+### Rule 4
+
+A company can own many support tickets.
+
+---
+
+### Rule 5
+
+A company can own many chat sessions.
+
+---
+
+### Rule 6
+
+Each company has one AI configuration.
+
+---
+
+### Rule 7
+
+Deleting a company is prohibited.
+
+Instead
+
+```
+status = INACTIVE
+```
+
+---
+
+### Rule 8
+
+Only Super Admin can permanently remove a company.
+
+---
+
+### Rule 9
+
+Company name must be unique.
+
+---
+
+### Rule 10
+
+Company slug must be unique.
+
+---
+
+# 4. Relationships
+
+```
+Company
+
+│
+
+├── Users
+
+├── Documents
+
+├── Chat Sessions
+
+├── Tickets
+
+├── AI Settings
+
+├── Audit Logs
+
+└── Notifications (Future)
+```
+
+---
+
+# 5. Columns
+
+| Column | Type | Nullable | Default | Description |
+|----------|------|----------|----------|-------------|
+| company_id | BIGINT | No | Auto Increment | Primary Key |
+| company_name | VARCHAR(150) | No | — | Display name |
+| company_slug | VARCHAR(150) | No | — | Unique URL identifier |
+| legal_name | VARCHAR(200) | Yes | NULL | Registered company name |
+| email | VARCHAR(255) | No | — | Primary contact email |
+| phone | VARCHAR(30) | Yes | NULL | Contact number |
+| website | VARCHAR(255) | Yes | NULL | Company website |
+| logo_url | VARCHAR(500) | Yes | NULL | Logo location |
+| industry | VARCHAR(100) | Yes | NULL | Business category |
+| country | VARCHAR(100) | Yes | NULL | Country |
+| timezone | VARCHAR(100) | No | UTC | Company timezone |
+| subscription_plan | ENUM | No | FREE | Plan type |
+| max_users | INT | No | 5 | Allowed users |
+| max_documents | INT | No | 50 | Allowed documents |
+| max_storage_mb | INT | No | 500 | Storage quota |
+| monthly_ai_tokens | BIGINT | No | 100000 | Monthly token limit |
+| token_usage | BIGINT | No | 0 | Current usage |
+| status | ENUM | No | ACTIVE | Company status |
+| trial_ends_at | DATETIME | Yes | NULL | Trial expiration |
+| subscription_expires_at | DATETIME | Yes | NULL | Subscription expiry |
+| last_activity_at | DATETIME | Yes | NULL | Last activity |
+| created_at | TIMESTAMP | No | CURRENT_TIMESTAMP | Creation date |
+| updated_at | TIMESTAMP | No | CURRENT_TIMESTAMP | Last update |
+| deleted_at | TIMESTAMP | Yes | NULL | Soft delete |
+
+---
+
+# 6. Enumerations
+
+## subscription_plan
+
+```
+FREE
+
+STARTER
+
+PRO
+
+BUSINESS
+
+ENTERPRISE
+```
+
+---
+
+## status
+
+```
+ACTIVE
+
+INACTIVE
+
+SUSPENDED
+
+TRIAL
+
+ARCHIVED
+```
+
+---
+
+# 7. Primary Key
+
+```
+company_id
+```
+
+Auto Increment
+
+BIGINT
+
+---
+
+# 8. Unique Constraints
+
+```
+company_name
+
+company_slug
+
+email
+```
+
+---
+
+# 9. Indexes
+
+Primary
+
+```
+company_id
+```
+
+Unique
+
+```
+company_name
+
+company_slug
+
+email
+```
+
+Standard
+
+```
+status
+
+subscription_plan
+
+created_at
+
+subscription_expires_at
+
+last_activity_at
+```
+
+Composite
+
+```
+(status, subscription_plan)
+
+(subscription_plan, created_at)
+```
+
+---
+
+# 10. Foreign Key References
+
+Referenced By
+
+```
+users.company_id
+
+documents.company_id
+
+chat_sessions.company_id
+
+tickets.company_id
+
+audit_logs.company_id
+
+ai_settings.company_id
+```
+
+---
+
+# 11. Validation Rules
+
+Company Name
+
+- Required
+- 3–150 characters
+
+---
+
+Slug
+
+- Lowercase
+- Hyphen separated
+- Unique
+- No spaces
+
+Example
+
+```
+acme-corporation
+```
+
+---
+
+Email
+
+- Required
+- Valid email format
+- Unique
+
+---
+
+Website
+
+- Optional
+- HTTPS preferred
+
+---
+
+Phone
+
+- Optional
+- E.164 format preferred
+
+---
+
+Timezone
+
+Must be valid IANA timezone.
+
+Example
+
+```
+Asia/Karachi
+
+UTC
+
+America/New_York
+```
+
+---
+
+# 12. Lifecycle
+
+```
+Register
+
+↓
+
+Trial
+
+↓
+
+Active
+
+↓
+
+Suspended
+
+↓
+
+Inactive
+
+↓
+
+Archived
+```
+
+---
+
+# 13. CRUD Operations
+
+## Create
+
+Create company during onboarding.
+
+---
+
+## Read
+
+Retrieve company profile.
+
+---
+
+## Update
+
+Update company information.
+
+---
+
+## Soft Delete
+
+Not allowed for Company Admin.
+
+Only Super Admin.
+
+---
+
+# 14. SQLAlchemy Model Example
+
+```python
+class Company(Base):
+    __tablename__ = "companies"
+
+    company_id = mapped_column(BigInteger, primary_key=True)
+    company_name = mapped_column(String(150), unique=True)
+    company_slug = mapped_column(String(150), unique=True)
+    email = mapped_column(String(255), unique=True)
+
+    users = relationship("User", back_populates="company")
+    documents = relationship("Document", back_populates="company")
+    tickets = relationship("Ticket", back_populates="company")
+```
+
+---
+
+# 15. Repository Responsibilities
+
+The CompanyRepository should provide:
+
+- Create Company
+- Get Company by ID
+- Get Company by Slug
+- Get Company by Email
+- Update Company
+- Update Subscription
+- Update Usage
+- Archive Company
+- Search Companies
+- List Active Companies
+
+Repository must **not** contain business logic.
+
+---
+
+# 16. Service Responsibilities
+
+The CompanyService is responsible for:
+
+- Validate registration
+- Generate slug
+- Enforce subscription limits
+- Check quotas
+- Activate trial
+- Suspend company
+- Calculate token usage
+- Update company settings
+
+---
+
+# 17. Related API Endpoints
+
+```
+POST   /api/v1/companies
+
+GET    /api/v1/companies
+
+GET    /api/v1/companies/{id}
+
+PUT    /api/v1/companies/{id}
+
+PATCH  /api/v1/companies/{id}/status
+
+PATCH  /api/v1/companies/{id}/subscription
+```
+
+---
+
+# 18. Sample Record
+
+```json
+{
+  "company_id": 1,
+  "company_name": "Acme Corporation",
+  "company_slug": "acme-corporation",
+  "email": "admin@acme.com",
+  "subscription_plan": "PRO",
+  "status": "ACTIVE",
+  "max_users": 25,
+  "max_documents": 500,
+  "monthly_ai_tokens": 500000,
+  "token_usage": 102345,
+  "timezone": "Asia/Karachi"
+}
+```
+
+---
+
+# 19. Security Considerations
+
+- Company Admins can only access their own company.
+- Every repository query must filter by `company_id`.
+- Never expose internal subscription data to customers.
+- Audit all subscription changes.
+- Encrypt sensitive configuration values.
+
+---
+
+# 20. Performance Considerations
+
+- Cache company profile in Redis.
+- Cache AI settings separately.
+- Avoid joining company data on every request; resolve tenant context once per request and reuse it.
+- Index subscription and status fields for dashboard queries.
+
+---
+
+# 21. Future Enhancements
+
+Future fields may include:
+
+- billing_customer_id
+- tax_number
+- invoice_email
+- preferred_language
+- data_region
+- ai_provider_override
+- branding_theme
+- custom_domain
+- webhook_secret
+
+---
+
+# 22. Cursor AI Instructions
+
+When generating code related to `companies`:
+
+1. Never bypass CompanyService.
+2. Always validate slug uniqueness.
+3. Always enforce subscription limits.
+4. Never hard-delete companies.
+5. Filter tenant-specific queries using `company_id`.
+6. Keep SQLAlchemy model, migration, repository, and documentation synchronized.
+
+---
+
+# 23. Definition of Done
+
+The `companies` table implementation is complete when:
+
+- Migration created
+- SQLAlchemy model implemented
+- Repository implemented
+- Service implemented
+- API endpoints implemented
+- Validation added
+- Unit tests written
+- Integration tests passing
+- Documentation updated
+
+---
+
+# End of Document
+
+**Next Table:** `users.md`

@@ -1,0 +1,24 @@
+# Environment
+backend/.env
+backend/.env.example
+
+
+# Python
+backend/.venv/
+backend/__pycache__/
+backend/.pytest_cache/
+
+# VS Code
+.vscode/
+
+# JetBrains
+.idea/
+
+# Storage
+backend/.storage/
+backend/.chroma/
+
+# Python cache
+*.pyc
+.logs
+.venv

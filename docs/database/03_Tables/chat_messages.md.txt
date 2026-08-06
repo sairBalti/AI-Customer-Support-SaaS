@@ -1,0 +1,774 @@
+# Database Documentation
+# 03_Tables/chat_messages.md
+
+# Table Specification: chat_messages
+
+**Database:** ai_customer_support
+
+**Schema:** public
+
+**Table Name:** chat_messages
+
+**Module:** AI Chat Engine
+
+**Owner:** AI Platform Team
+
+**Status:** Approved
+
+**Version:** 1.0
+
+**Related Documents**
+
+- 00_Overview.md
+- 01_Design_Principles.md
+- 02_ERD.md
+- chat_sessions.md
+- users.md
+- knowledge_chunks.md
+- tickets.md
+- audit_logs.md
+
+---
+
+# 1. Purpose
+
+The **chat_messages** table stores every message exchanged during a chat session.
+
+A message may originate from:
+
+- Customer
+- AI Assistant
+- Human Support Agent
+- System
+
+Every message belongs to exactly one chat session.
+
+This table represents the complete conversation history and is one of the largest tables in the system.
+
+It is optimized for:
+
+- Conversation replay
+- AI context generation
+- Analytics
+- Customer history
+- Human escalation
+- Compliance
+- Auditing
+
+---
+
+# 2. Business Responsibilities
+
+The chat_messages table is responsible for:
+
+- Storing customer messages
+- Storing AI responses
+- Storing agent replies
+- Maintaining conversation order
+- Tracking token usage
+- Tracking AI response time
+- Tracking message feedback
+- Storing AI citations
+- Supporting conversation replay
+
+---
+
+# 3. Business Rules
+
+### Rule 1
+
+Every message belongs to one session.
+
+---
+
+### Rule 2
+
+Messages are immutable.
+
+Edits create a new revision (future enhancement).
+
+---
+
+### Rule 3
+
+Messages are ordered chronologically.
+
+---
+
+### Rule 4
+
+AI responses always reference the triggering customer message.
+
+---
+
+### Rule 5
+
+Messages cannot exist without an active session.
+
+---
+
+### Rule 6
+
+Deleting a session removes all messages.
+
+---
+
+### Rule 7
+
+Messages are never shared across companies.
+
+---
+
+### Rule 8
+
+Every AI answer stores retrieval metadata for traceability.
+
+---
+
+# 4. Relationships
+
+```
+Company
+
+│
+
+└── Chat Sessions
+
+        │
+
+        └── Chat Messages
+
+                │
+
+                ├── Users
+
+                ├── Knowledge Chunks
+
+                ├── AI Responses
+
+                └── Tickets
+```
+
+---
+
+# 5. Message Lifecycle
+
+```
+Customer Sends Message
+
+↓
+
+Message Stored
+
+↓
+
+Knowledge Retrieval
+
+↓
+
+LLM Generates Response
+
+↓
+
+AI Response Stored
+
+↓
+
+Session Statistics Updated
+
+↓
+
+Conversation Continues
+```
+
+---
+
+# 6. Columns
+
+| Column | Type | Nullable | Default | Description |
+|----------|------|----------|----------|-------------|
+| message_id | BIGINT | No | Auto Increment | Primary Key |
+| session_id | BIGINT | No | — | Chat session |
+| company_id | BIGINT | No | — | Tenant |
+| sender_id | BIGINT | Yes | NULL | User/Agent |
+| parent_message_id | BIGINT | Yes | NULL | Parent message |
+| message_uuid | CHAR(36) | No | UUID | Public identifier |
+| message_type | ENUM | No | TEXT | Message type |
+| sender_type | ENUM | No | CUSTOMER | Sender |
+| message_text | LONGTEXT | No | — | Message content |
+| formatted_message | LONGTEXT | Yes | NULL | Markdown/HTML |
+| ai_model | VARCHAR(100) | Yes | NULL | GPT/Gemini model |
+| ai_provider | VARCHAR(100) | Yes | NULL | Provider |
+| prompt_tokens | INT | No | 0 | Prompt tokens |
+| completion_tokens | INT | No | 0 | Completion tokens |
+| total_tokens | INT | No | 0 | Total tokens |
+| estimated_cost | DECIMAL(12,6) | No | 0 | AI cost |
+| response_time_ms | INT | Yes | NULL | AI latency |
+| confidence_score | DECIMAL(5,2) | Yes | NULL | AI confidence |
+| retrieved_chunks | JSON | Yes | NULL | Retrieved chunk IDs |
+| citations | JSON | Yes | NULL | Source citations |
+| metadata | JSON | Yes | NULL | Additional metadata |
+| feedback | ENUM | Yes | NULL | Customer rating |
+| is_escalated | BOOLEAN | No | FALSE | Escalated flag |
+| created_at | TIMESTAMP | No | CURRENT_TIMESTAMP | Created |
+
+---
+
+# 7. Enumerations
+
+## sender_type
+
+```
+CUSTOMER
+
+AI
+
+AGENT
+
+SYSTEM
+```
+
+---
+
+## message_type
+
+```
+TEXT
+
+MARKDOWN
+
+IMAGE
+
+FILE
+
+SYSTEM_EVENT
+```
+
+---
+
+## feedback
+
+```
+HELPFUL
+
+NOT_HELPFUL
+
+NEUTRAL
+```
+
+---
+
+# 8. Primary Key
+
+```
+message_id
+```
+
+BIGINT AUTO_INCREMENT
+
+---
+
+# 9. Foreign Keys
+
+## Session
+
+```
+session_id
+
+↓
+
+chat_sessions.session_id
+```
+
+Delete Rule
+
+```
+CASCADE
+```
+
+---
+
+## Company
+
+```
+company_id
+
+↓
+
+companies.company_id
+```
+
+Delete Rule
+
+```
+RESTRICT
+```
+
+---
+
+## Sender
+
+```
+sender_id
+
+↓
+
+users.user_id
+```
+
+Delete Rule
+
+```
+SET NULL
+```
+
+---
+
+## Parent Message
+
+```
+parent_message_id
+
+↓
+
+chat_messages.message_id
+```
+
+Delete Rule
+
+```
+SET NULL
+```
+
+Used for:
+
+- AI replies
+- Threaded conversations
+- Future message editing
+
+---
+
+# 10. Unique Constraints
+
+```
+message_uuid
+```
+
+---
+
+# 11. Indexes
+
+Primary
+
+```
+message_id
+```
+
+Unique
+
+```
+message_uuid
+```
+
+Indexes
+
+```
+session_id
+
+company_id
+
+sender_id
+
+created_at
+
+sender_type
+```
+
+Composite
+
+```
+(session_id, created_at)
+
+(company_id, created_at)
+
+(session_id, sender_type)
+
+(company_id, session_id)
+```
+
+---
+
+# 12. Validation Rules
+
+Message Text
+
+- Required
+- Maximum configured length
+- UTF-8 only
+
+---
+
+Confidence Score
+
+Range
+
+```
+0.00
+
+↓
+
+1.00
+```
+
+---
+
+Response Time
+
+Must be greater than zero.
+
+---
+
+Token Counts
+
+Must never be negative.
+
+---
+
+# 13. AI Response Flow
+
+```
+Customer Message
+
+↓
+
+Save Message
+
+↓
+
+Retriever
+
+↓
+
+Vector Database
+
+↓
+
+Top K Chunks
+
+↓
+
+LLM
+
+↓
+
+AI Response
+
+↓
+
+Save AI Message
+
+↓
+
+Update Session
+```
+
+---
+
+# 14. CRUD Operations
+
+## Create
+
+Automatically generated.
+
+---
+
+## Read
+
+Conversation history.
+
+---
+
+## Update
+
+Only:
+
+- Feedback
+- Metadata
+
+Message text remains immutable.
+
+---
+
+## Delete
+
+Only through parent session deletion.
+
+---
+
+# 15. SQLAlchemy Model Example
+
+```python
+class ChatMessage(Base):
+
+    __tablename__ = "chat_messages"
+
+    message_id = mapped_column(
+        BigInteger,
+        primary_key=True
+    )
+
+    session_id = mapped_column(
+        ForeignKey("chat_sessions.session_id"),
+        nullable=False
+    )
+
+    company_id = mapped_column(
+        ForeignKey("companies.company_id"),
+        nullable=False
+    )
+
+    sender_id = mapped_column(
+        ForeignKey("users.user_id")
+    )
+
+    parent_message_id = mapped_column(
+        ForeignKey("chat_messages.message_id")
+    )
+
+    session = relationship(
+        "ChatSession",
+        back_populates="messages"
+    )
+```
+
+---
+
+# 16. Repository Responsibilities
+
+ChatMessageRepository
+
+- Save message
+- Save AI response
+- Get conversation
+- Get latest messages
+- Get by UUID
+- Search conversation
+- Update feedback
+- Count tokens
+- Delete session messages
+
+---
+
+# 17. Service Responsibilities
+
+ChatMessageService
+
+- Save customer message
+- Generate AI prompt
+- Call Retriever
+- Call LLM
+- Save AI response
+- Calculate cost
+- Store citations
+- Track latency
+- Update statistics
+
+---
+
+# 18. Related API Endpoints
+
+```
+POST /api/v1/chat/messages
+
+GET /api/v1/chat/messages/{id}
+
+GET /api/v1/chat/sessions/{id}/messages
+
+POST /api/v1/chat/messages/{id}/feedback
+
+GET /api/v1/chat/search
+```
+
+---
+
+# 19. Sample Record
+
+```json
+{
+    "message_id": 5001,
+    "session_id": 201,
+    "company_id": 1,
+    "sender_type": "AI",
+    "message_type": "MARKDOWN",
+    "message_text": "Our refund policy allows returns within 30 days.",
+    "prompt_tokens": 1324,
+    "completion_tokens": 87,
+    "total_tokens": 1411,
+    "estimated_cost": 0.0084,
+    "response_time_ms": 1456,
+    "confidence_score": 0.96
+}
+```
+
+---
+
+# 20. AI Traceability
+
+Every AI response should preserve:
+
+```
+User Question
+
+↓
+
+Retrieved Chunks
+
+↓
+
+Embedding Model
+
+↓
+
+LLM Model
+
+↓
+
+Prompt Version
+
+↓
+
+Generated Answer
+```
+
+This supports:
+
+- Debugging
+- Hallucination analysis
+- AI quality improvement
+- Compliance
+
+---
+
+# 21. Security Considerations
+
+- Enforce tenant isolation.
+- Escape HTML where necessary.
+- Sanitize uploaded markdown.
+- Encrypt sensitive metadata if required.
+- Do not expose internal prompts to customers.
+- Record moderation events.
+- Support PII redaction.
+
+---
+
+# 22. Performance Considerations
+
+- Index conversation history.
+- Paginate messages.
+- Lazy-load large conversations.
+- Compress archived messages if required.
+- Batch analytics updates.
+- Cache recent conversations.
+
+---
+
+# 23. Future Enhancements
+
+- Streaming responses
+- Voice messages
+- Image generation
+- Audio transcription
+- Message editing history
+- Threaded replies
+- Message reactions
+- AI reasoning metadata
+- Automatic summaries
+- Translation
+- Sentiment scoring
+- Toxicity detection
+
+---
+
+# 24. Cursor AI Instructions
+
+When generating code for `chat_messages`:
+
+1. Never modify stored message text.
+2. Save every AI response as a separate message.
+3. Maintain strict chronological ordering.
+4. Record token usage for AI messages.
+5. Store citations and retrieved chunk references.
+6. Keep session statistics synchronized.
+7. Never expose hidden prompts.
+8. Keep ORM models, migrations, repositories, services, and documentation synchronized.
+
+---
+
+# 25. Definition of Done
+
+The `chat_messages` implementation is complete when:
+
+- Migration created
+- SQLAlchemy model implemented
+- Repository implemented
+- Service implemented
+- AI integration completed
+- Citation tracking implemented
+- Token accounting implemented
+- Conversation replay implemented
+- Feedback implemented
+- Unit tests passing
+- Integration tests passing
+- Documentation updated
+
+---
+
+# 26. Architecture Notes
+
+Recommended processing pipeline:
+
+```
+Customer
+
+↓
+
+Chat Session
+
+↓
+
+Chat Message
+
+↓
+
+Retriever
+
+↓
+
+Vector Search
+
+↓
+
+Prompt Builder
+
+↓
+
+LLM
+
+↓
+
+AI Message
+
+↓
+
+Session Metrics
+
+↓
+
+Analytics
+```
+
+Every message should be independently traceable, allowing developers to reconstruct the exact AI interaction, including retrieved knowledge, token usage, model configuration, and generated response.
+
+---
+
+# End of Document

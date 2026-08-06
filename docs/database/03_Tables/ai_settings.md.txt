@@ -1,0 +1,757 @@
+# Database Documentation
+# 03_Tables/ai_settings.md
+
+# Table Specification: ai_settings
+
+**Database:** ai_customer_support
+
+**Schema:** public
+
+**Table Name:** ai_settings
+
+**Module:** AI Configuration
+
+**Owner:** AI Platform Team
+
+**Status:** Approved
+
+**Version:** 1.0
+
+**Classification:** Platform Configuration
+
+---
+
+# Related Documents
+
+- 00_Overview.md
+- 01_Design_Principles.md
+- 02_ERD.md
+- companies.md
+- api_keys.md
+- documents.md
+- knowledge_chunks.md
+- chat_sessions.md
+- chat_messages.md
+- audit_logs.md
+- subscription_plans.md *(Future)*
+- feature_flags.md *(Future)*
+
+---
+
+# 1. Purpose
+
+The **ai_settings** table stores all configurable AI behavior for each company (tenant).
+
+Instead of hardcoding AI parameters inside the application, every AI request reads its configuration from this table.
+
+This enables every company to have different AI behavior without changing application code.
+
+Examples include:
+
+- AI Provider
+- LLM Model
+- Embedding Model
+- Prompt Templates
+- Temperature
+- Max Tokens
+- Confidence Threshold
+- Chunk Size
+- Vector Database
+- Human Escalation Rules
+
+---
+
+# 2. Business Responsibilities
+
+The ai_settings table is responsible for
+
+- AI provider configuration
+- LLM configuration
+- Embedding configuration
+- RAG settings
+- Prompt configuration
+- Escalation configuration
+- Cost optimization
+- AI feature toggles
+- Multi-tenant AI customization
+
+---
+
+# 3. Business Rules
+
+### Rule 1
+
+Every company has exactly one active AI configuration.
+
+---
+
+### Rule 2
+
+Settings are company-specific.
+
+---
+
+### Rule 3
+
+Only administrators may modify AI settings.
+
+---
+
+### Rule 4
+
+Changes must be recorded in Audit Logs.
+
+---
+
+### Rule 5
+
+Prompt templates are version controlled.
+
+---
+
+### Rule 6
+
+Temperature must remain within supported model limits.
+
+---
+
+### Rule 7
+
+Embedding model and vector dimension must be compatible.
+
+---
+
+### Rule 8
+
+Inactive configurations cannot be used.
+
+---
+
+# 4. Relationships
+
+```
+Company
+
+│
+
+├── AI Settings
+
+│
+
+├── Documents
+
+├── Knowledge Chunks
+
+├── Chat Sessions
+
+├── Chat Messages
+
+└── Audit Logs
+```
+
+---
+
+# 5. Configuration Lifecycle
+
+```
+Administrator
+
+↓
+
+Create Configuration
+
+↓
+
+Validate
+
+↓
+
+Activate
+
+↓
+
+AI Requests
+
+↓
+
+Configuration Updated
+
+↓
+
+Audit Logged
+```
+
+---
+
+# 6. Columns
+
+| Column | Type | Nullable | Default | Description |
+|----------|------|----------|----------|-------------|
+| ai_setting_id | BIGINT | No | Auto Increment | Primary Key |
+| company_id | BIGINT | No | — | Company |
+| configuration_uuid | CHAR(36) | No | UUID | Public identifier |
+| configuration_name | VARCHAR(150) | No | Default Configuration | Friendly name |
+| ai_provider | ENUM | No | OPENAI | AI provider |
+| llm_model | VARCHAR(150) | No | gpt-5 | Chat model |
+| embedding_provider | ENUM | No | OPENAI | Embedding provider |
+| embedding_model | VARCHAR(150) | No | text-embedding-3-large | Embedding model |
+| embedding_dimension | INT | No | 3072 | Vector dimension |
+| vector_database | ENUM | No | CHROMADB | Vector database |
+| temperature | DECIMAL(3,2) | No | 0.30 | LLM temperature |
+| top_p | DECIMAL(3,2) | No | 1.00 | Top-P |
+| frequency_penalty | DECIMAL(3,2) | No | 0.00 | Frequency penalty |
+| presence_penalty | DECIMAL(3,2) | No | 0.00 | Presence penalty |
+| max_input_tokens | INT | No | 120000 | Maximum prompt tokens |
+| max_output_tokens | INT | No | 2048 | Maximum completion tokens |
+| chunk_size | INT | No | 800 | Chunk size |
+| chunk_overlap | INT | No | 100 | Chunk overlap |
+| similarity_threshold | DECIMAL(4,2) | No | 0.75 | Vector similarity |
+| max_chunks_per_query | INT | No | 6 | Retrieved chunks |
+| confidence_threshold | DECIMAL(4,2) | No | 0.70 | Human escalation threshold |
+| enable_streaming | BOOLEAN | No | TRUE | Stream AI responses |
+| enable_citations | BOOLEAN | No | TRUE | Show document citations |
+| enable_conversation_memory | BOOLEAN | No | TRUE | Maintain context |
+| enable_human_escalation | BOOLEAN | No | TRUE | Auto escalation |
+| prompt_template | LONGTEXT | Yes | NULL | System prompt |
+| metadata | JSON | Yes | NULL | Additional configuration |
+| is_active | BOOLEAN | No | TRUE | Active configuration |
+| version | INT | No | 1 | Configuration version |
+| created_by | BIGINT | No | — | User |
+| created_at | TIMESTAMP | No | CURRENT_TIMESTAMP | Created |
+| updated_at | TIMESTAMP | No | CURRENT_TIMESTAMP | Updated |
+
+---
+
+# 7. Enumerations
+
+## ai_provider
+
+```
+OPENAI
+
+GOOGLE
+
+ANTHROPIC
+
+AZURE_OPENAI
+
+OLLAMA
+```
+
+---
+
+## embedding_provider
+
+```
+OPENAI
+
+GOOGLE
+
+VOYAGE_AI
+
+COHERE
+
+JINAAI
+```
+
+---
+
+## vector_database
+
+```
+CHROMADB
+
+PINECONE
+
+QDRANT
+
+WEAVIATE
+
+MILVUS
+
+PGVECTOR
+```
+
+---
+
+# 8. Primary Key
+
+```
+ai_setting_id
+```
+
+---
+
+# 9. Foreign Keys
+
+## Company
+
+```
+company_id
+
+↓
+
+companies.company_id
+```
+
+Delete Rule
+
+```
+CASCADE
+```
+
+---
+
+## Created By
+
+```
+created_by
+
+↓
+
+users.user_id
+```
+
+Delete Rule
+
+```
+RESTRICT
+```
+
+---
+
+# 10. Unique Constraints
+
+```
+configuration_uuid
+```
+
+```
+company_id
+```
+
+Only one active configuration per company.
+
+---
+
+# 11. Indexes
+
+Primary
+
+```
+ai_setting_id
+```
+
+Unique
+
+```
+configuration_uuid
+```
+
+Indexes
+
+```
+company_id
+
+is_active
+
+ai_provider
+
+llm_model
+
+created_at
+```
+
+---
+
+# 12. Validation Rules
+
+Temperature
+
+```
+0.00
+
+↓
+
+2.00
+```
+
+---
+
+Similarity Threshold
+
+```
+0.00
+
+↓
+
+1.00
+```
+
+---
+
+Confidence Threshold
+
+```
+0.00
+
+↓
+
+1.00
+```
+
+---
+
+Chunk Size
+
+Recommended
+
+```
+300
+
+↓
+
+1200
+```
+
+---
+
+Chunk Overlap
+
+Recommended
+
+```
+50
+
+↓
+
+250
+```
+
+---
+
+Embedding Dimension
+
+Must match the selected embedding model.
+
+---
+
+# 13. AI Request Flow
+
+```
+Customer Question
+
+↓
+
+Load AI Settings
+
+↓
+
+Retrieve Knowledge
+
+↓
+
+Build Prompt
+
+↓
+
+Call LLM
+
+↓
+
+Generate Response
+
+↓
+
+Store Conversation
+```
+
+---
+
+# 14. CRUD Operations
+
+## Create
+
+Create default configuration.
+
+---
+
+## Read
+
+Retrieve company configuration.
+
+---
+
+## Update
+
+Update AI behavior.
+
+Every change creates an Audit Log.
+
+---
+
+## Delete
+
+Not supported.
+
+Deactivate instead.
+
+---
+
+# 15. SQLAlchemy Model Example
+
+```python
+class AISetting(Base):
+
+    __tablename__ = "ai_settings"
+
+    ai_setting_id = mapped_column(
+        BigInteger,
+        primary_key=True
+    )
+
+    company_id = mapped_column(
+        ForeignKey("companies.company_id"),
+        nullable=False,
+        unique=True
+    )
+
+    created_by = mapped_column(
+        ForeignKey("users.user_id"),
+        nullable=False
+    )
+
+    configuration_uuid = mapped_column(
+        String(36),
+        unique=True
+    )
+```
+
+---
+
+# 16. Repository Responsibilities
+
+AISettingRepository
+
+- Create configuration
+- Get active configuration
+- Get by company
+- Update settings
+- Activate configuration
+- Deactivate configuration
+- Version history
+
+---
+
+# 17. Service Responsibilities
+
+AISettingService
+
+- Validate configuration
+- Load runtime configuration
+- Update AI settings
+- Validate provider compatibility
+- Validate embedding compatibility
+- Generate default configuration
+- Audit configuration changes
+
+---
+
+# 18. Related API Endpoints
+
+```
+GET    /api/v1/ai/settings
+
+GET    /api/v1/ai/settings/{companyId}
+
+POST   /api/v1/ai/settings
+
+PATCH  /api/v1/ai/settings
+
+PATCH  /api/v1/ai/settings/activate
+```
+
+---
+
+# 19. Sample Record
+
+```json
+{
+  "company_id": 1,
+  "ai_provider": "OPENAI",
+  "llm_model": "gpt-5",
+  "embedding_provider": "OPENAI",
+  "embedding_model": "text-embedding-3-large",
+  "vector_database": "CHROMADB",
+  "temperature": 0.3,
+  "chunk_size": 800,
+  "chunk_overlap": 100,
+  "confidence_threshold": 0.70,
+  "enable_streaming": true
+}
+```
+
+---
+
+# 20. Configuration Hierarchy
+
+```
+Platform Defaults
+
+↓
+
+Subscription Defaults
+
+↓
+
+Company AI Settings
+
+↓
+
+Runtime Overrides (Temporary)
+
+↓
+
+LLM Request
+```
+
+---
+
+# 21. Security Considerations
+
+- Only administrators can modify settings.
+- Audit every configuration change.
+- Validate provider compatibility.
+- Never expose internal prompts to customers.
+- Encrypt provider credentials stored outside this table.
+- Restrict configuration APIs.
+
+---
+
+# 22. Performance Considerations
+
+- Cache active configuration.
+- Reload cache on updates.
+- Avoid reading settings from the database on every token.
+- Version prompt templates.
+- Validate configuration only during updates.
+
+---
+
+# 23. Future Enhancements
+
+- Prompt version management
+- Multiple AI assistants
+- Department-specific AI
+- Model routing
+- Cost optimization engine
+- Automatic model fallback
+- A/B prompt testing
+- AI guardrails
+- AI safety policies
+- Multi-language prompt templates
+
+---
+
+# 24. Cursor AI Instructions
+
+When generating code for `ai_settings`:
+
+1. Load configuration before every AI request.
+2. Cache active settings.
+3. Validate provider/model compatibility.
+4. Keep prompt templates versioned.
+5. Record all configuration changes.
+6. Never hardcode AI parameters.
+7. Support multiple providers through adapters.
+8. Keep ORM models, migrations, repositories, services, and documentation synchronized.
+
+---
+
+# 25. Definition of Done
+
+The `ai_settings` implementation is complete when:
+
+- Migration created
+- SQLAlchemy model implemented
+- Repository implemented
+- Service implemented
+- Runtime configuration loader implemented
+- Cache layer implemented
+- Prompt versioning implemented
+- Provider validation implemented
+- Audit logging implemented
+- Unit tests passing
+- Integration tests passing
+- Documentation updated
+
+---
+
+# 26. Recommended Default Configuration
+
+| Setting | Recommended Value |
+|----------|------------------|
+| Chat Model | GPT-5 |
+| Embedding Model | text-embedding-3-large |
+| Temperature | 0.30 |
+| Chunk Size | 800 |
+| Chunk Overlap | 100 |
+| Max Chunks | 6 |
+| Similarity Threshold | 0.75 |
+| Confidence Threshold | 0.70 |
+| Streaming | Enabled |
+| Citations | Enabled |
+| Conversation Memory | Enabled |
+
+---
+
+# 27. Architecture Notes
+
+Recommended runtime architecture
+
+```
+API Request
+
+↓
+
+Authentication
+
+↓
+
+Load Cached AI Settings
+
+↓
+
+Retriever
+
+↓
+
+Vector Database
+
+↓
+
+Prompt Builder
+
+↓
+
+LLM Adapter
+
+↓
+
+AI Response
+
+↓
+
+Chat History
+
+↓
+
+Analytics
+```
+
+The **ai_settings** table acts as the central configuration hub for all AI functionality in the platform. It should be provider-agnostic, version-controlled, cache-friendly, and flexible enough to support future AI models, vector databases, retrieval strategies, and prompt engineering techniques without requiring application code changes.
+
+---
+
+# End of Document
+

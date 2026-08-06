@@ -1,0 +1,1097 @@
+# 02_Architecture.md
+
+# AI Customer Support Agent Platform
+## Software Architecture Document (SAD)
+
+**Version:** 1.0
+
+**Status:** Draft
+
+**Related Documents**
+
+- 01_PRD.md
+- 03_Database.md
+- 04_API_Specification.md
+
+---
+
+# 1. Purpose
+
+This document defines the complete software architecture of the AI Customer Support Platform.
+
+It serves as the primary reference for:
+
+- Developers
+- AI (Cursor)
+- QA Engineers
+- DevOps Engineers
+- Product Managers
+
+Every feature implemented in this project **must conform to this architecture**.
+
+---
+
+# 2. Architecture Goals
+
+The system shall be:
+
+- Modular
+- Maintainable
+- Testable
+- Scalable
+- Secure
+- Cloud Ready
+- Multi-Tenant
+- AI First
+- API First
+
+---
+
+# 3. Architecture Principles
+
+## 3.1 Clean Architecture
+
+Business logic must never depend on frameworks.
+
+```
+Presentation
+
+↓
+
+Application
+
+↓
+
+Domain
+
+↓
+
+Infrastructure
+```
+
+Dependencies always point inward.
+
+---
+
+## 3.2 SOLID
+
+Every module must follow SOLID principles.
+
+- Single Responsibility
+- Open Closed
+- Liskov Substitution
+- Interface Segregation
+- Dependency Inversion
+
+---
+
+## 3.3 DRY
+
+Never duplicate business logic.
+
+Extract reusable services.
+
+---
+
+## 3.4 KISS
+
+Keep every solution simple.
+
+Avoid unnecessary abstraction.
+
+---
+
+## 3.5 Separation of Concerns
+
+Never mix
+
+- API
+- Business Logic
+- Database
+- AI Logic
+- Authentication
+
+Each belongs in its own layer.
+
+---
+
+# 4. High-Level Architecture
+
+```
+                React
+
+                  │
+
+          REST API / WebSocket
+
+                  │
+
+              FastAPI
+
+                  │
+
+──────────────────────────────────
+
+ Authentication
+
+ Chat
+
+ Ticket
+
+ Knowledge Base
+
+ Analytics
+
+ Users
+
+ Company
+
+ AI
+
+──────────────────────────────────
+
+ Services Layer
+
+──────────────────────────────────
+
+ Repository Layer
+
+──────────────────────────────────
+
+MySQL
+
+ChromaDB
+
+Object Storage
+
+Redis
+
+──────────────────────────────────
+
+OpenAI / Gemini
+```
+
+---
+
+# 5. System Components
+
+The platform consists of eight major modules.
+
+## Authentication Module
+
+Responsibilities
+
+- Login
+- Register
+- JWT
+- RBAC
+- Refresh Tokens
+
+---
+
+## Company Module
+
+Responsibilities
+
+- Company onboarding
+- Branding
+- Subscription
+- Tenant isolation
+
+---
+
+## Knowledge Base
+
+Responsibilities
+
+- Upload documents
+- Parse documents
+- Chunk text
+- Generate embeddings
+- Store vectors
+
+---
+
+## AI Module
+
+Responsibilities
+
+- Prompt generation
+- Retrieval
+- LLM communication
+- Confidence scoring
+- Tool calling
+- Memory
+
+---
+
+## Chat Module
+
+Responsibilities
+
+- Customer conversations
+- Conversation history
+- Streaming
+- Sources
+
+---
+
+## Ticket Module
+
+Responsibilities
+
+- Escalation
+- Assignment
+- Resolution
+- Internal notes
+
+---
+
+## Analytics Module
+
+Responsibilities
+
+- Dashboard
+- Metrics
+- Reports
+
+---
+
+## Administration Module
+
+Responsibilities
+
+- Users
+- Roles
+- AI Settings
+- Company Settings
+
+---
+
+# 6. Folder Structure
+
+```
+backend/
+
+app/
+
+api/
+
+auth/
+
+chat/
+
+ticket/
+
+document/
+
+company/
+
+analytics/
+
+admin/
+
+services/
+
+repositories/
+
+models/
+
+schemas/
+
+database/
+
+middleware/
+
+core/
+
+agents/
+
+langgraph/
+
+prompts/
+
+tools/
+
+utils/
+
+config/
+
+tests/
+
+scripts/
+
+frontend/
+
+src/
+
+pages/
+
+components/
+
+hooks/
+
+layouts/
+
+services/
+
+contexts/
+
+store/
+
+types/
+
+utils/
+
+styles/
+
+assets/
+```
+
+---
+
+# 7. Layer Responsibilities
+
+## API Layer
+
+Responsibilities
+
+- Receive requests
+- Validate request
+- Call service
+- Return response
+
+Must NOT
+
+- Query database
+- Call AI directly
+- Write business logic
+
+---
+
+## Service Layer
+
+Responsibilities
+
+Contains ALL business logic.
+
+Responsible for
+
+- Validation
+- Rules
+- Transactions
+- Calling repositories
+- Calling AI
+
+---
+
+## Repository Layer
+
+Responsibilities
+
+Only database queries.
+
+Must never
+
+- Validate business rules
+- Generate AI responses
+- Perform authentication
+
+---
+
+## Domain Models
+
+Contain
+
+- Entities
+- Business Objects
+- Enumerations
+
+---
+
+## Infrastructure
+
+Contains
+
+- MySQL
+- Redis
+- ChromaDB
+- S3
+- SMTP
+- OpenAI SDK
+
+---
+
+# 8. Dependency Rules
+
+Allowed
+
+```
+API
+
+↓
+
+Service
+
+↓
+
+Repository
+
+↓
+
+Database
+```
+
+Not Allowed
+
+```
+API
+
+↓
+
+Database
+```
+
+Not Allowed
+
+```
+Repository
+
+↓
+
+Service
+```
+
+---
+
+# 9. AI Architecture
+
+```
+Customer
+
+↓
+
+Router
+
+↓
+
+Support Agent
+
+↓
+
+Retriever
+
+↓
+
+Prompt Builder
+
+↓
+
+LLM
+
+↓
+
+Confidence
+
+↓
+
+Decision
+
+↓
+
+Store Memory
+```
+
+---
+
+# 10. LangGraph Nodes
+
+## Start
+
+Receive question.
+
+---
+
+## Authentication
+
+Validate company.
+
+---
+
+## Memory
+
+Load previous messages.
+
+---
+
+## Retrieval
+
+Search vector database.
+
+---
+
+## Prompt
+
+Construct system prompt.
+
+---
+
+## LLM
+
+Generate answer.
+
+---
+
+## Confidence
+
+Evaluate confidence.
+
+---
+
+## Decision
+
+Return answer
+
+or
+
+Escalate.
+
+---
+
+## Ticket
+
+Create support ticket.
+
+---
+
+## End
+
+Save conversation.
+
+---
+
+# 11. RAG Pipeline
+
+```
+Upload PDF
+
+↓
+
+Extract Text
+
+↓
+
+Chunk
+
+↓
+
+Embedding
+
+↓
+
+Vector DB
+
+↓
+
+Customer Query
+
+↓
+
+Embedding
+
+↓
+
+Similarity Search
+
+↓
+
+Top K Chunks
+
+↓
+
+Prompt
+
+↓
+
+GPT
+
+↓
+
+Answer
+```
+
+---
+
+# 12. Authentication Flow
+
+```
+Login
+
+↓
+
+Validate Credentials
+
+↓
+
+Generate JWT
+
+↓
+
+Generate Refresh Token
+
+↓
+
+Return Tokens
+```
+
+Protected APIs
+
+```
+JWT
+
+↓
+
+Middleware
+
+↓
+
+RBAC
+
+↓
+
+API
+```
+
+---
+
+# 13. Authorization
+
+Roles
+
+- Super Admin
+- Company Admin
+- Support Agent
+- Customer
+
+Permissions are checked before every protected action.
+
+---
+
+# 14. Multi-Tenant Strategy
+
+Every table contains
+
+```
+company_id
+```
+
+Every query filters
+
+```
+WHERE company_id = ?
+```
+
+No exceptions.
+
+---
+
+# 15. Document Processing Pipeline
+
+```
+Upload
+
+↓
+
+Virus Check
+
+↓
+
+Store File
+
+↓
+
+Extract Text
+
+↓
+
+Normalize
+
+↓
+
+Chunk
+
+↓
+
+Generate Embeddings
+
+↓
+
+Store Vectors
+
+↓
+
+Update Status
+```
+
+---
+
+# 16. Conversation Flow
+
+```
+Customer
+
+↓
+
+AI
+
+↓
+
+Confidence
+
+↓
+
+High
+
+↓
+
+Answer
+
+OR
+
+Low
+
+↓
+
+Ticket
+
+↓
+
+Support Agent
+```
+
+---
+
+# 17. Error Handling
+
+Use standardized errors.
+
+Example
+
+```json
+{
+  "success": false,
+  "error": {
+    "code": "INVALID_TOKEN",
+    "message": "Authentication failed."
+  }
+}
+```
+
+Never expose stack traces.
+
+---
+
+# 18. Logging
+
+Log
+
+- Login
+- Logout
+- Upload
+- Delete
+- Ticket
+- AI Errors
+- API Errors
+
+Do not log
+
+- Passwords
+- Tokens
+- API Keys
+
+---
+
+# 19. Caching Strategy
+
+Redis
+
+Cache
+
+- User profile
+- Company settings
+- AI configuration
+- Frequently accessed documents
+
+TTL
+
+5–30 minutes
+
+---
+
+# 20. Background Jobs
+
+Use Celery (or FastAPI BackgroundTasks for MVP).
+
+Jobs
+
+- Document indexing
+- Embedding generation
+- Email notifications
+- Cleanup
+- Analytics aggregation
+
+---
+
+# 21. Security Architecture
+
+Authentication
+
+JWT
+
+Authorization
+
+RBAC
+
+Transport
+
+HTTPS
+
+Passwords
+
+Argon2 or bcrypt
+
+Secrets
+
+Environment Variables
+
+Rate Limiting
+
+100 requests/minute (configurable)
+
+Audit Logs
+
+Enabled
+
+---
+
+# 22. Performance Guidelines
+
+API Response
+
+< 500 ms (excluding AI)
+
+AI Response
+
+< 5 seconds
+
+Database
+
+Indexed queries only
+
+No N+1 queries
+
+Pagination required for lists
+
+Async
+
+Use async/await for I/O
+
+---
+
+# 23. Scalability Strategy
+
+Horizontal Scaling
+
+- Multiple API instances
+- Load balancer
+- Shared Redis
+- Shared MySQL
+- External Vector DB
+
+Stateless API
+
+Store no session state in memory.
+
+---
+
+# 24. Deployment Architecture
+
+```
+Internet
+
+↓
+
+Nginx
+
+↓
+
+FastAPI
+
+↓
+
+Redis
+
+↓
+
+MySQL
+
+↓
+
+ChromaDB
+
+↓
+
+S3
+
+↓
+
+OpenAI
+```
+
+---
+
+# 25. Code Standards
+
+Maximum function size
+
+50 lines
+
+Maximum file size
+
+500 lines (preferred)
+
+Naming
+
+snake_case (Python)
+
+PascalCase (Classes)
+
+camelCase (React variables/functions)
+
+Dependency Injection
+
+Required
+
+Repository Pattern
+
+Required
+
+Service Layer
+
+Required
+
+---
+
+# 26. Testing Strategy
+
+Unit Tests
+
+Repositories
+
+Services
+
+API Tests
+
+Integration Tests
+
+End-to-End Tests
+
+Coverage Target
+
+≥ 85%
+
+---
+
+# 27. Monitoring
+
+Metrics
+
+- API latency
+- AI latency
+- Database latency
+- Error rate
+- Token usage
+- Cost per request but we gonna use free api key from gemeni
+
+Health Endpoints
+
+```
+GET /health
+
+GET /ready
+```
+
+---
+
+# 28. Architecture Decision Records (ADRs)
+
+Major architectural decisions must be documented in the `docs/ADR` directory.
+
+Examples:
+
+- Why FastAPI over Django
+- Why LangGraph over LangChain
+- Why MySQL for relational data
+- Why ChromaDB for development
+- Why Pinecone for production
+
+Each ADR should include:
+- Context
+- Decision
+- Consequences
+- Alternatives considered
+
+---
+
+# 29. Future Architecture
+
+Planned enhancements:
+
+- Multi-agent orchestration
+- Event-driven architecture
+- CQRS (if needed)
+- Distributed task queues
+- Multi-region deployments
+- Enterprise SSO
+- Plugin architecture
+
+These features should be designed so they can be added without breaking the existing architecture.
+
+---
+
+# 30. Cursor AI Development Rules
+
+Before generating code, Cursor should:
+
+1. Read `01_PRD.md` to understand the feature.
+2. Read `02_Architecture.md` to determine where the code belongs.
+3. Follow Clean Architecture strictly.
+4. Never place business logic in routers.
+5. Always use dependency injection.
+6. Reuse existing services before creating new ones.
+7. Write type hints and docstrings.
+8. Add tests for new functionality.
+9. Update documentation when APIs or architecture change.
+10. Keep modules cohesive and avoid circular dependencies.
+
+---
+
+# 31. Definition of Done
+
+A feature is considered complete when:
+
+- Functional requirements are implemented.
+- Unit tests pass.
+- Integration tests pass.
+- Code follows architecture guidelines.
+- Security checks are satisfied.
+- Documentation is updated.
+- Logging and error handling are included.
+- Performance targets are met.
+- Code review is completed.
+
+---
+
+# End of Document
+
+**Document:** `02_Architecture.md`

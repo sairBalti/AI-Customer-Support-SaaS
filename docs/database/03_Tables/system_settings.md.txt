@@ -1,0 +1,670 @@
+# Database Documentation
+# 03_Tables/system_settings.md
+
+# Table Specification: system_settings
+
+**Database:** ai_customer_support
+
+**Schema:** public
+
+**Table Name:** system_settings
+
+**Module:** Platform Configuration
+
+**Owner:** Platform Engineering Team
+
+**Status:** Approved
+
+**Version:** 1.0
+
+**Classification:** Platform Configuration
+
+---
+
+# Related Documents
+
+- 00_Overview.md
+- 01_Design_Principles.md
+- 02_ERD.md
+- companies.md
+- users.md
+- subscriptions.md
+- ai_settings.md
+- api_keys.md
+- audit_logs.md
+- feature_flags.md *(Future)*
+- environment_variables.md *(Infrastructure)*
+
+---
+
+# 1. Purpose
+
+The **system_settings** table stores global platform configuration shared across the entire application.
+
+Unlike **ai_settings**, which stores company-specific AI configuration, this table contains platform-wide settings used by every tenant.
+
+The settings stored here allow administrators to modify application behavior without changing source code or redeploying the platform.
+
+Examples include:
+
+- Platform maintenance mode
+- Registration settings
+- Default AI provider
+- Default subscription plan
+- Email configuration
+- Password policies
+- Security policies
+- Storage providers
+- Upload limits
+- Global feature toggles
+
+---
+
+# 2. Business Responsibilities
+
+The system_settings table is responsible for
+
+- Global configuration
+- Platform defaults
+- Feature management
+- Security configuration
+- AI default settings
+- Email configuration
+- Storage configuration
+- Authentication policies
+- Maintenance settings
+
+---
+
+# 3. Business Rules
+
+### Rule 1
+
+There is only one active configuration for the platform.
+
+---
+
+### Rule 2
+
+Only Super Administrators may modify system settings.
+
+---
+
+### Rule 3
+
+Every configuration change must generate an Audit Log.
+
+---
+
+### Rule 4
+
+Configuration changes must be versioned.
+
+---
+
+### Rule 5
+
+Changes affecting security require administrator confirmation.
+
+---
+
+### Rule 6
+
+Sensitive values are encrypted.
+
+---
+
+### Rule 7
+
+The application should cache settings.
+
+---
+
+### Rule 8
+
+Some settings require application restart while others support hot reload.
+
+---
+
+# 4. Relationships
+
+```
+Platform
+
+│
+
+├── System Settings
+
+│
+
+├── Companies
+
+├── Users
+
+├── AI Settings
+
+├── Audit Logs
+
+└── Feature Flags
+```
+
+---
+
+# 5. Configuration Lifecycle
+
+```
+Super Admin
+
+↓
+
+Update Settings
+
+↓
+
+Validation
+
+↓
+
+Audit Log
+
+↓
+
+Cache Refresh
+
+↓
+
+Platform Components
+
+↓
+
+Runtime Configuration
+```
+
+---
+
+# 6. Columns
+
+| Column | Type | Nullable | Default | Description |
+|----------|------|----------|----------|-------------|
+| system_setting_id | BIGINT | No | Auto Increment | Primary Key |
+| configuration_uuid | CHAR(36) | No | UUID | Public identifier |
+| platform_name | VARCHAR(150) | No | AI Customer Support | Platform name |
+| platform_url | VARCHAR(255) | No | — | Public URL |
+| default_language | VARCHAR(10) | No | en | Default language |
+| default_timezone | VARCHAR(100) | No | UTC | Platform timezone |
+| maintenance_mode | BOOLEAN | No | FALSE | Maintenance status |
+| allow_company_registration | BOOLEAN | No | TRUE | Public registration |
+| allow_social_login | BOOLEAN | No | TRUE | OAuth login |
+| default_subscription_plan | VARCHAR(50) | No | FREE | Default plan |
+| default_ai_provider | VARCHAR(50) | No | OPENAI | Default AI provider |
+| max_upload_size_mb | INT | No | 50 | Upload limit |
+| max_api_requests_per_minute | INT | No | 120 | API rate limit |
+| password_min_length | INT | No | 8 | Password policy |
+| password_require_special_char | BOOLEAN | No | TRUE | Password policy |
+| session_timeout_minutes | INT | No | 60 | Login timeout |
+| email_provider | ENUM | No | SMTP | Email provider |
+| storage_provider | ENUM | No | LOCAL | File storage |
+| log_retention_days | INT | No | 365 | Log retention |
+| enable_signup | BOOLEAN | No | TRUE | User signup |
+| enable_ai | BOOLEAN | No | TRUE | AI availability |
+| enable_billing | BOOLEAN | No | TRUE | Billing module |
+| enable_notifications | BOOLEAN | No | TRUE | Notification module |
+| metadata | JSON | Yes | NULL | Additional settings |
+| version | INT | No | 1 | Configuration version |
+| updated_by | BIGINT | No | — | Last updated by |
+| created_at | TIMESTAMP | No | CURRENT_TIMESTAMP | Created |
+| updated_at | TIMESTAMP | No | CURRENT_TIMESTAMP | Updated |
+
+---
+
+# 7. Enumerations
+
+## email_provider
+
+```
+SMTP
+
+SENDGRID
+
+MAILGUN
+
+AWS_SES
+
+POSTMARK
+```
+
+---
+
+## storage_provider
+
+```
+LOCAL
+
+AWS_S3
+
+AZURE_BLOB
+
+GOOGLE_CLOUD
+
+MINIO
+```
+
+---
+
+# 8. Primary Key
+
+```
+system_setting_id
+```
+
+---
+
+# 9. Foreign Keys
+
+## Updated By
+
+```
+updated_by
+
+↓
+
+users.user_id
+```
+
+Delete Rule
+
+```
+RESTRICT
+```
+
+---
+
+# 10. Unique Constraints
+
+```
+configuration_uuid
+```
+
+Only one active system configuration should exist.
+
+---
+
+# 11. Indexes
+
+Primary
+
+```
+system_setting_id
+```
+
+Unique
+
+```
+configuration_uuid
+```
+
+Indexes
+
+```
+maintenance_mode
+
+default_ai_provider
+
+storage_provider
+
+email_provider
+
+updated_at
+```
+
+---
+
+# 12. Validation Rules
+
+Platform Name
+
+- Required
+- Maximum 150 characters
+
+---
+
+Maximum Upload Size
+
+```
+1 MB
+
+↓
+
+5 GB
+```
+
+---
+
+Password Length
+
+```
+8
+
+↓
+
+128
+```
+
+---
+
+Session Timeout
+
+```
+5
+
+↓
+
+1440 minutes
+```
+
+---
+
+API Rate Limit
+
+Must be greater than zero.
+
+---
+
+# 13. Configuration Loading Flow
+
+```
+Application Startup
+
+↓
+
+Load System Settings
+
+↓
+
+Validate
+
+↓
+
+Cache Configuration
+
+↓
+
+Application Modules
+
+↓
+
+Runtime
+```
+
+---
+
+# 14. CRUD Operations
+
+## Create
+
+Create initial platform configuration.
+
+---
+
+## Read
+
+Retrieve platform configuration.
+
+---
+
+## Update
+
+Update configuration.
+
+Generate Audit Log.
+
+Refresh cache.
+
+---
+
+## Delete
+
+Not supported.
+
+---
+
+# 15. SQLAlchemy Model Example
+
+```python
+class SystemSetting(Base):
+
+    __tablename__ = "system_settings"
+
+    system_setting_id = mapped_column(
+        BigInteger,
+        primary_key=True
+    )
+
+    configuration_uuid = mapped_column(
+        String(36),
+        unique=True
+    )
+
+    updated_by = mapped_column(
+        ForeignKey("users.user_id"),
+        nullable=False
+    )
+```
+
+---
+
+# 16. Repository Responsibilities
+
+SystemSettingRepository
+
+- Get configuration
+- Update configuration
+- Load defaults
+- Refresh cache
+- Get version history
+
+---
+
+# 17. Service Responsibilities
+
+SystemSettingService
+
+- Validate configuration
+- Cache settings
+- Refresh runtime configuration
+- Encrypt sensitive values
+- Record audit logs
+- Notify dependent services
+- Reload configuration
+
+---
+
+# 18. Related API Endpoints
+
+```
+GET    /api/v1/system/settings
+
+PATCH  /api/v1/system/settings
+
+POST   /api/v1/system/settings/reload
+
+GET    /api/v1/system/settings/version
+```
+
+Super Administrator access only.
+
+---
+
+# 19. Sample Record
+
+```json
+{
+  "platform_name": "AI Customer Support",
+  "maintenance_mode": false,
+  "default_ai_provider": "OPENAI",
+  "storage_provider": "AWS_S3",
+  "email_provider": "SENDGRID",
+  "max_upload_size_mb": 100,
+  "password_min_length": 10,
+  "enable_ai": true,
+  "enable_notifications": true
+}
+```
+
+---
+
+# 20. Configuration Hierarchy
+
+```
+System Settings
+
+↓
+
+Subscription Defaults
+
+↓
+
+Company AI Settings
+
+↓
+
+Runtime Overrides
+
+↓
+
+Application
+```
+
+---
+
+# 21. Security Considerations
+
+- Only Super Administrators can modify settings.
+- Encrypt sensitive configuration values.
+- Audit every configuration change.
+- Validate uploaded configuration values.
+- Protect configuration APIs using RBAC.
+- Cache encrypted settings securely.
+
+---
+
+# 22. Performance Considerations
+
+- Cache all settings in memory.
+- Reload only after updates.
+- Avoid repeated database reads.
+- Support hot reload for non-critical settings.
+- Use distributed cache for clustered deployments.
+
+---
+
+# 23. Future Enhancements
+
+- Configuration history
+- Feature flags
+- Dynamic configuration
+- Multi-region settings
+- Environment profiles
+- Secret manager integration
+- Configuration rollback
+- Blue/Green configuration deployment
+- Scheduled configuration activation
+- Configuration approval workflow
+
+---
+
+# 24. Cursor AI Instructions
+
+When generating code for `system_settings`:
+
+1. Cache all platform settings.
+2. Never hardcode configurable values.
+3. Encrypt sensitive settings.
+4. Support runtime cache refresh.
+5. Record every configuration change.
+6. Restrict updates to Super Administrators.
+7. Validate all configuration values before saving.
+8. Keep ORM models, migrations, repositories, services, and documentation synchronized.
+
+---
+
+# 25. Definition of Done
+
+The `system_settings` implementation is complete when:
+
+- Migration created
+- SQLAlchemy model implemented
+- Repository implemented
+- Service implemented
+- Configuration cache implemented
+- Runtime reload implemented
+- Audit logging implemented
+- Validation implemented
+- Unit tests passing
+- Integration tests passing
+- Documentation updated
+
+---
+
+# 26. Recommended Default Values
+
+| Setting | Recommended Value |
+|----------|-------------------|
+| Default AI Provider | OPENAI |
+| Storage Provider | AWS S3 |
+| Email Provider | SMTP |
+| Upload Limit | 100 MB |
+| Session Timeout | 60 Minutes |
+| Password Length | 10 |
+| Maintenance Mode | Disabled |
+| Public Registration | Enabled |
+| Billing | Enabled |
+| Notifications | Enabled |
+
+---
+
+# 27. Architecture Notes
+
+Recommended architecture
+
+```
+Application Startup
+
+↓
+
+System Settings Loader
+
+↓
+
+Configuration Cache (Redis / Memory)
+
+↓
+
+Application Services
+
+↓
+
+AI Services
+
+↓
+
+Authentication
+
+↓
+
+Storage
+
+↓
+
+Email
+
+↓
+
+Notifications
+```
+
+The **system_settings** table is the central configuration authority for the entire platform. It provides a single source of truth for platform-wide behavior, security policies, default integrations, and operational settings. All services should consume configuration through a centralized configuration service with caching and validation rather than querying the database directly.
+
+---
+
+# End of Document

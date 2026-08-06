@@ -1,0 +1,760 @@
+# Database Documentation
+# 03_Tables/chat_sessions.md
+
+# Table Specification: chat_sessions
+
+**Database:** ai_customer_support
+
+**Schema:** public
+
+**Table Name:** chat_sessions
+
+**Module:** AI Chat
+
+**Owner:** AI Platform Team
+
+**Status:** Approved
+
+**Version:** 1.0
+
+**Related Documents**
+
+- 00_Overview.md
+- 01_Design_Principles.md
+- 02_ERD.md
+- users.md
+- companies.md
+- chat_messages.md
+- tickets.md
+- ai_settings.md
+
+---
+
+# 1. Purpose
+
+The **chat_sessions** table represents an individual conversation between a customer and the AI Customer Support Agent.
+
+A chat session begins when a customer starts a new conversation and ends when:
+
+- Customer closes the chat
+- AI closes the conversation
+- Chat expires because of inactivity
+- Conversation is escalated into a support ticket
+- Administrator manually closes the session
+
+A session groups all messages that belong to the same conversation.
+
+---
+
+# 2. Business Responsibilities
+
+The chat_sessions table is responsible for:
+
+- Conversation lifecycle
+- Session ownership
+- AI model tracking
+- Conversation status
+- Escalation tracking
+- Conversation analytics
+- Token usage
+- Cost tracking
+- Customer satisfaction
+
+---
+
+# 3. Business Rules
+
+### Rule 1
+
+Every session belongs to exactly one company.
+
+---
+
+### Rule 2
+
+Every session belongs to one customer.
+
+---
+
+### Rule 3
+
+A customer may have multiple sessions.
+
+---
+
+### Rule 4
+
+A session contains one or more chat messages.
+
+---
+
+### Rule 5
+
+A session may create zero or one support ticket.
+
+---
+
+### Rule 6
+
+Archived sessions cannot receive new messages.
+
+---
+
+### Rule 7
+
+Soft deletion is not permitted.
+
+Sessions are archived instead.
+
+---
+
+### Rule 8
+
+Every AI response must belong to an existing session.
+
+---
+
+### Rule 9
+
+Session titles are generated automatically from the first conversation unless manually renamed.
+
+---
+
+### Rule 10
+
+Every session must remain tenant isolated.
+
+---
+
+# 4. Relationships
+
+```
+Company
+    │
+    ├── Chat Sessions
+    │       │
+    │       ├── Chat Messages
+    │       │
+    │       └── Ticket (Optional)
+    │
+    └── Customer
+```
+
+---
+
+# 5. Session Lifecycle
+
+```
+Created
+
+↓
+
+AI Greeting
+
+↓
+
+Conversation
+
+↓
+
+AI Responses
+
+↓
+
+Customer Continues
+
+↓
+
+Resolved
+
+↓
+
+Archived
+```
+
+If escalation is required
+
+```
+Conversation
+
+↓
+
+Ticket Created
+
+↓
+
+Human Agent Assigned
+
+↓
+
+Session Archived
+```
+
+---
+
+# 6. Columns
+
+| Column | Type | Nullable | Default | Description |
+|---------|------|----------|----------|-------------|
+| session_id | BIGINT | No | Auto Increment | Primary Key |
+| company_id | BIGINT | No | — | Company |
+| customer_id | BIGINT | No | — | Customer/User |
+| session_uuid | CHAR(36) | No | UUID | Public session identifier |
+| title | VARCHAR(255) | Yes | NULL | Conversation title |
+| language | VARCHAR(20) | No | en | Conversation language |
+| ai_provider | VARCHAR(100) | No | OpenAI | AI provider |
+| ai_model | VARCHAR(100) | No | gpt-5 | AI model |
+| session_status | ENUM | No | ACTIVE | Session status |
+| total_messages | INT | No | 0 | Total messages |
+| total_prompt_tokens | BIGINT | No | 0 | Prompt tokens |
+| total_completion_tokens | BIGINT | No | 0 | Completion tokens |
+| total_tokens | BIGINT | No | 0 | Total token usage |
+| estimated_cost | DECIMAL(12,6) | No | 0 | Estimated AI cost |
+| customer_satisfaction | TINYINT | Yes | NULL | Rating (1-5) |
+| escalation_required | BOOLEAN | No | FALSE | Escalation flag |
+| escalated_at | DATETIME | Yes | NULL | Escalation timestamp |
+| ticket_id | BIGINT | Yes | NULL | Related ticket |
+| last_message_at | DATETIME | Yes | NULL | Last activity |
+| archived_at | DATETIME | Yes | NULL | Archive timestamp |
+| metadata | JSON | Yes | NULL | Additional metadata |
+| created_at | TIMESTAMP | No | CURRENT_TIMESTAMP | Created |
+| updated_at | TIMESTAMP | No | CURRENT_TIMESTAMP | Updated |
+
+---
+
+# 7. Enumerations
+
+## session_status
+
+```
+ACTIVE
+
+WAITING_CUSTOMER
+
+WAITING_AI
+
+ESCALATED
+
+RESOLVED
+
+ARCHIVED
+
+EXPIRED
+```
+
+---
+
+# 8. Primary Key
+
+```
+session_id
+```
+
+BIGINT AUTO_INCREMENT
+
+---
+
+# 9. Foreign Keys
+
+## Company
+
+```
+company_id
+
+↓
+
+companies.company_id
+```
+
+Delete Rule
+
+```
+RESTRICT
+```
+
+---
+
+## Customer
+
+```
+customer_id
+
+↓
+
+users.user_id
+```
+
+Delete Rule
+
+```
+RESTRICT
+```
+
+---
+
+## Ticket
+
+```
+ticket_id
+
+↓
+
+tickets.ticket_id
+```
+
+Delete Rule
+
+```
+SET NULL
+```
+
+---
+
+# 10. Unique Constraints
+
+```
+session_uuid
+```
+
+---
+
+# 11. Indexes
+
+Primary
+
+```
+session_id
+```
+
+Unique
+
+```
+session_uuid
+```
+
+Indexes
+
+```
+company_id
+
+customer_id
+
+session_status
+
+created_at
+
+last_message_at
+
+ticket_id
+```
+
+Composite
+
+```
+(company_id, customer_id)
+
+(company_id, session_status)
+
+(company_id, created_at)
+
+(customer_id, created_at)
+
+(company_id, last_message_at)
+```
+
+---
+
+# 12. Validation Rules
+
+Session UUID
+
+- UUID v4
+- Required
+- Unique
+
+---
+
+Customer Satisfaction
+
+Allowed values
+
+```
+1
+
+2
+
+3
+
+4
+
+5
+```
+
+---
+
+Token Counts
+
+Must never be negative.
+
+---
+
+Estimated Cost
+
+Must always be calculated from actual token usage.
+
+---
+
+# 13. Session States
+
+```
+ACTIVE
+```
+
+Conversation is ongoing.
+
+---
+
+```
+WAITING_AI
+```
+
+AI is generating a response.
+
+---
+
+```
+WAITING_CUSTOMER
+```
+
+Waiting for customer input.
+
+---
+
+```
+ESCALATED
+```
+
+Transferred to human support.
+
+---
+
+```
+RESOLVED
+```
+
+Conversation completed.
+
+---
+
+```
+ARCHIVED
+```
+
+Closed permanently.
+
+---
+
+# 14. CRUD Operations
+
+## Create
+
+Automatically created when a customer starts a conversation.
+
+---
+
+## Read
+
+Retrieve session.
+
+List session history.
+
+---
+
+## Update
+
+Update:
+
+- Status
+- Token usage
+- Cost
+- Satisfaction
+- Metadata
+
+---
+
+## Delete
+
+Not allowed.
+
+Archive instead.
+
+---
+
+# 15. SQLAlchemy Model Example
+
+```python
+class ChatSession(Base):
+    __tablename__ = "chat_sessions"
+
+    session_id = mapped_column(
+        BigInteger,
+        primary_key=True
+    )
+
+    company_id = mapped_column(
+        ForeignKey("companies.company_id"),
+        nullable=False
+    )
+
+    customer_id = mapped_column(
+        ForeignKey("users.user_id"),
+        nullable=False
+    )
+
+    session_uuid = mapped_column(
+        String(36),
+        unique=True
+    )
+
+    messages = relationship(
+        "ChatMessage",
+        back_populates="session",
+        cascade="all, delete-orphan"
+    )
+
+    ticket = relationship(
+        "Ticket"
+    )
+```
+
+---
+
+# 16. Repository Responsibilities
+
+ChatSessionRepository should provide
+
+- Create session
+- Get session
+- Get by UUID
+- Get active session
+- List customer sessions
+- Archive session
+- Update token usage
+- Update cost
+- Update title
+- Update status
+- Update satisfaction
+
+---
+
+# 17. Service Responsibilities
+
+ChatSessionService should
+
+- Create conversation
+- Generate title
+- Track token usage
+- Track AI cost
+- Handle escalation
+- Close session
+- Archive inactive sessions
+- Generate analytics
+
+---
+
+# 18. Related API Endpoints
+
+```
+POST   /api/v1/chat/sessions
+
+GET    /api/v1/chat/sessions
+
+GET    /api/v1/chat/sessions/{id}
+
+PATCH  /api/v1/chat/sessions/{id}
+
+PATCH  /api/v1/chat/sessions/{id}/archive
+
+PATCH  /api/v1/chat/sessions/{id}/rating
+
+GET    /api/v1/chat/history
+```
+
+---
+
+# 19. Sample Record
+
+```json
+{
+    "session_id": 1201,
+    "company_id": 5,
+    "customer_id": 38,
+    "session_uuid": "fd56dd6d-8cb2-4d46-bdd8-9df4bdf25b53",
+    "title": "Refund policy inquiry",
+    "session_status": "ACTIVE",
+    "ai_provider": "OpenAI",
+    "ai_model": "gpt-5",
+    "total_messages": 8,
+    "total_tokens": 2435,
+    "estimated_cost": 0.0127,
+    "escalation_required": false
+}
+```
+
+---
+
+# 20. Conversation Flow
+
+```
+Customer Message
+
+↓
+
+Save Message
+
+↓
+
+Generate Embedding (Optional)
+
+↓
+
+Retrieve Knowledge
+
+↓
+
+Call LLM
+
+↓
+
+Store AI Response
+
+↓
+
+Update Session Statistics
+
+↓
+
+Return Response
+```
+
+---
+
+# 21. Security Considerations
+
+- Every query must include `company_id`.
+- Customers can access only their own sessions.
+- Company administrators can view company conversations.
+- Session UUIDs should be unguessable.
+- Conversation metadata must never expose sensitive system information.
+- Record session state changes in audit logs.
+
+---
+
+# 22. Performance Considerations
+
+- Cache active sessions.
+- Update token statistics asynchronously where possible.
+- Archive inactive sessions automatically.
+- Paginate chat history.
+- Avoid loading messages until requested.
+- Use lazy loading for related entities.
+
+---
+
+# 23. Future Enhancements
+
+- Multi-agent conversations
+- Voice conversations
+- Image conversations
+- Video conversations
+- Conversation summaries
+- Automatic topic detection
+- Sentiment analysis
+- Intent detection
+- AI confidence scoring
+- Live agent takeover
+- Session bookmarking
+- Session labels
+- Conversation translation
+
+---
+
+# 24. Cursor AI Instructions
+
+When generating code for `chat_sessions`:
+
+1. Never delete sessions.
+2. Archive completed conversations.
+3. Always maintain tenant isolation.
+4. Update token usage after every AI response.
+5. Calculate AI cost using configured pricing.
+6. Generate session titles automatically.
+7. Support escalation to tickets.
+8. Keep ORM models, migrations, repositories, services, and documentation synchronized.
+
+---
+
+# 25. Definition of Done
+
+The `chat_sessions` implementation is complete when:
+
+- Migration created
+- SQLAlchemy model implemented
+- Repository implemented
+- Service implemented
+- Session lifecycle implemented
+- Token accounting implemented
+- AI cost tracking implemented
+- Escalation integrated
+- API endpoints implemented
+- Unit tests passing
+- Integration tests passing
+- Documentation updated
+
+---
+
+# 26. Architecture Notes
+
+Recommended flow:
+
+```
+Customer
+
+↓
+
+Chat Session
+
+↓
+
+Chat Messages
+
+↓
+
+Retriever
+
+↓
+
+Vector Database
+
+↓
+
+LLM
+
+↓
+
+AI Response
+
+↓
+
+Persist Messages
+
+↓
+
+Update Session Metrics
+```
+
+The **chat_sessions** table is the root aggregate for the entire conversation. Every chat message, AI interaction, token calculation, and ticket escalation should originate from and be associated with a single session.
+
+---
+
+# End of Document

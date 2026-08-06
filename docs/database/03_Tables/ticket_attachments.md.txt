@@ -1,0 +1,759 @@
+# Database Documentation
+# 03_Tables/ticket_attachments.md
+
+# Table Specification: ticket_attachments
+
+**Database:** ai_customer_support
+
+**Schema:** public
+
+**Table Name:** ticket_attachments
+
+**Module:** Customer Support / File Management
+
+**Owner:** Customer Support Platform Team
+
+**Status:** Approved
+
+**Version:** 1.0
+
+**Related Documents**
+
+- 00_Overview.md
+- 01_Design_Principles.md
+- 02_ERD.md
+- tickets.md
+- ticket_messages.md
+- users.md
+- companies.md
+- audit_logs.md
+- storage_settings.md *(Future)*
+
+---
+
+# 1. Purpose
+
+The **ticket_attachments** table stores metadata for files attached to support ticket messages.
+
+Files themselves are **never stored inside MySQL**. Instead, they are stored in object storage such as:
+
+- AWS S3
+- Azure Blob Storage
+- Google Cloud Storage
+- MinIO
+- Local Storage (Development)
+
+This table stores only metadata required for retrieval, validation, auditing, and lifecycle management.
+
+Attachments may include:
+
+- Images
+- PDFs
+- Word documents
+- Excel files
+- ZIP archives
+- Videos
+- Audio recordings
+- Log files
+- Screenshots
+
+---
+
+# 2. Business Responsibilities
+
+The ticket_attachments table is responsible for:
+
+- Attachment metadata
+- Storage references
+- Upload tracking
+- Download auditing
+- Virus scan status
+- File validation
+- Ownership tracking
+- Attachment lifecycle
+
+---
+
+# 3. Business Rules
+
+### Rule 1
+
+Every attachment belongs to one ticket message.
+
+---
+
+### Rule 2
+
+Every attachment belongs to one company.
+
+---
+
+### Rule 3
+
+Files must pass malware scanning before becoming downloadable.
+
+---
+
+### Rule 4
+
+Duplicate uploads are detected using SHA-256 hashes.
+
+---
+
+### Rule 5
+
+Files are immutable after upload.
+
+---
+
+### Rule 6
+
+Deleting a ticket does not immediately remove physical files.
+
+Cleanup is handled asynchronously according to the retention policy.
+
+---
+
+### Rule 7
+
+Downloads require authorization.
+
+---
+
+### Rule 8
+
+Attachments inherit the visibility of their parent message.
+
+---
+
+# 4. Relationships
+
+```
+Company
+    │
+    ├── Tickets
+    │      │
+    │      ├── Ticket Messages
+    │      │        │
+    │      │        └── Ticket Attachments
+    │      │
+    │      └── Users
+```
+
+---
+
+# 5. Attachment Lifecycle
+
+```
+Upload
+
+↓
+
+Validate
+
+↓
+
+Virus Scan
+
+↓
+
+Store Object
+
+↓
+
+Save Metadata
+
+↓
+
+Available
+
+↓
+
+Downloaded
+
+↓
+
+Archived
+
+↓
+
+Retention Cleanup
+```
+
+---
+
+# 6. Columns
+
+| Column | Type | Nullable | Default | Description |
+|---------|------|----------|----------|-------------|
+| attachment_id | BIGINT | No | Auto Increment | Primary Key |
+| ticket_message_id | BIGINT | No | — | Parent message |
+| company_id | BIGINT | No | — | Company |
+| uploaded_by | BIGINT | No | — | User |
+| attachment_uuid | CHAR(36) | No | UUID | Public identifier |
+| original_filename | VARCHAR(255) | No | — | Original file name |
+| stored_filename | VARCHAR(255) | No | — | Generated storage name |
+| storage_provider | ENUM | No | LOCAL | Storage provider |
+| storage_path | VARCHAR(1000) | No | — | Object storage path |
+| mime_type | VARCHAR(150) | No | — | MIME type |
+| file_extension | VARCHAR(20) | No | — | File extension |
+| file_size_bytes | BIGINT | No | — | File size |
+| file_hash | CHAR(64) | No | — | SHA-256 hash |
+| virus_scan_status | ENUM | No | PENDING | Scan result |
+| virus_scan_completed_at | DATETIME | Yes | NULL | Scan completion |
+| download_count | BIGINT | No | 0 | Download count |
+| last_downloaded_at | DATETIME | Yes | NULL | Last download |
+| expires_at | DATETIME | Yes | NULL | Optional expiration |
+| metadata | JSON | Yes | NULL | Additional metadata |
+| created_at | TIMESTAMP | No | CURRENT_TIMESTAMP | Uploaded |
+| updated_at | TIMESTAMP | No | CURRENT_TIMESTAMP | Updated |
+
+---
+
+# 7. Enumerations
+
+## storage_provider
+
+```
+LOCAL
+
+AWS_S3
+
+AZURE_BLOB
+
+GOOGLE_CLOUD
+
+MINIO
+```
+
+---
+
+## virus_scan_status
+
+```
+PENDING
+
+SCANNING
+
+CLEAN
+
+INFECTED
+
+FAILED
+```
+
+---
+
+# 8. Primary Key
+
+```
+attachment_id
+```
+
+BIGINT AUTO_INCREMENT
+
+---
+
+# 9. Foreign Keys
+
+## Ticket Message
+
+```
+ticket_message_id
+
+↓
+
+ticket_messages.ticket_message_id
+```
+
+Delete Rule
+
+```
+CASCADE
+```
+
+---
+
+## Company
+
+```
+company_id
+
+↓
+
+companies.company_id
+```
+
+Delete Rule
+
+```
+RESTRICT
+```
+
+---
+
+## Uploaded By
+
+```
+uploaded_by
+
+↓
+
+users.user_id
+```
+
+Delete Rule
+
+```
+RESTRICT
+```
+
+---
+
+# 10. Unique Constraints
+
+```
+attachment_uuid
+```
+
+Within a company, duplicate files are prevented using:
+
+```
+(company_id, file_hash)
+```
+
+---
+
+# 11. Indexes
+
+Primary
+
+```
+attachment_id
+```
+
+Unique
+
+```
+attachment_uuid
+```
+
+Indexes
+
+```
+ticket_message_id
+
+company_id
+
+uploaded_by
+
+virus_scan_status
+
+created_at
+
+download_count
+```
+
+Composite
+
+```
+(company_id, ticket_message_id)
+
+(company_id, file_hash)
+
+(company_id, virus_scan_status)
+
+(ticket_message_id, created_at)
+```
+
+---
+
+# 12. Validation Rules
+
+Original Filename
+
+- Required
+- Maximum 255 characters
+
+---
+
+File Size
+
+Must comply with subscription limits.
+
+Example
+
+| Plan | Maximum Attachment Size |
+|------|-------------------------:|
+| Free | 10 MB |
+| Starter | 25 MB |
+| Professional | 100 MB |
+| Enterprise | 500 MB |
+
+---
+
+SHA-256 Hash
+
+- Required
+- Exactly 64 hexadecimal characters
+
+---
+
+Allowed MIME Types
+
+Examples
+
+```
+application/pdf
+
+image/png
+
+image/jpeg
+
+application/zip
+
+application/msword
+
+application/vnd.openxmlformats-officedocument.wordprocessingml.document
+```
+
+Blocked types should be configurable.
+
+---
+
+# 13. Upload Workflow
+
+```
+User Upload
+
+↓
+
+Validate Extension
+
+↓
+
+Validate MIME Type
+
+↓
+
+Calculate SHA-256
+
+↓
+
+Virus Scan
+
+↓
+
+Upload to Object Storage
+
+↓
+
+Save Metadata
+
+↓
+
+Generate Download URL
+
+↓
+
+Complete
+```
+
+---
+
+# 14. CRUD Operations
+
+## Create
+
+Upload attachment.
+
+---
+
+## Read
+
+Retrieve metadata.
+
+Generate secure download URL.
+
+---
+
+## Update
+
+Only
+
+- Download statistics
+- Metadata
+- Virus scan status
+
+---
+
+## Delete
+
+Logical deletion through parent ticket lifecycle.
+
+Physical cleanup handled by scheduled jobs.
+
+---
+
+# 15. SQLAlchemy Model Example
+
+```python
+class TicketAttachment(Base):
+
+    __tablename__ = "ticket_attachments"
+
+    attachment_id = mapped_column(
+        BigInteger,
+        primary_key=True
+    )
+
+    ticket_message_id = mapped_column(
+        ForeignKey("ticket_messages.ticket_message_id"),
+        nullable=False
+    )
+
+    company_id = mapped_column(
+        ForeignKey("companies.company_id"),
+        nullable=False
+    )
+
+    uploaded_by = mapped_column(
+        ForeignKey("users.user_id"),
+        nullable=False
+    )
+
+    attachment_uuid = mapped_column(
+        String(36),
+        unique=True
+    )
+
+    message = relationship(
+        "TicketMessage",
+        back_populates="attachments"
+    )
+```
+
+---
+
+# 16. Repository Responsibilities
+
+TicketAttachmentRepository should provide
+
+- Upload metadata
+- Get attachment
+- Get by UUID
+- List message attachments
+- Update scan status
+- Increment download count
+- Search attachments
+- Storage usage statistics
+
+---
+
+# 17. Service Responsibilities
+
+TicketAttachmentService should
+
+- Validate uploads
+- Calculate SHA-256 hashes
+- Perform virus scanning
+- Upload to object storage
+- Generate signed download URLs
+- Track downloads
+- Enforce storage quotas
+- Queue cleanup jobs
+
+---
+
+# 18. Related API Endpoints
+
+```
+POST   /api/v1/ticket-messages/{id}/attachments
+
+GET    /api/v1/attachments/{id}
+
+GET    /api/v1/attachments/{id}/download
+
+DELETE /api/v1/attachments/{id}
+
+GET    /api/v1/tickets/{id}/attachments
+```
+
+---
+
+# 19. Sample Record
+
+```json
+{
+  "attachment_id": 801,
+  "ticket_message_id": 420,
+  "company_id": 1,
+  "uploaded_by": 25,
+  "attachment_uuid": "ef5d37b5-c48d-4b3d-a7a6-fba3d2786b6c",
+  "original_filename": "error-screenshot.png",
+  "stored_filename": "4ec3f8f8-5df4-4eb2-bd68.png",
+  "storage_provider": "AWS_S3",
+  "mime_type": "image/png",
+  "file_size_bytes": 182431,
+  "virus_scan_status": "CLEAN",
+  "download_count": 3
+}
+```
+
+---
+
+# 20. Download Flow
+
+```
+Authorized User
+
+↓
+
+Permission Check
+
+↓
+
+Ownership Validation
+
+↓
+
+Generate Signed URL
+
+↓
+
+Download Object
+
+↓
+
+Update Download Statistics
+
+↓
+
+Audit Log
+```
+
+Downloads should never expose the internal storage path.
+
+---
+
+# 21. Security Considerations
+
+- Scan every uploaded file.
+- Reject infected files.
+- Validate MIME type and extension.
+- Encrypt files at rest.
+- Generate short-lived signed download URLs.
+- Enforce tenant isolation.
+- Log every upload and download.
+- Prevent path traversal attacks.
+- Apply rate limiting to download endpoints.
+
+---
+
+# 22. Performance Considerations
+
+- Store binaries outside MySQL.
+- Use CDN for frequently downloaded files.
+- Cache attachment metadata.
+- Queue virus scanning asynchronously.
+- Compress supported file types where appropriate.
+- Schedule cleanup of orphaned files.
+
+---
+
+# 23. Future Enhancements
+
+- Drag-and-drop uploads
+- Multiple file uploads
+- Image thumbnails
+- Image optimization
+- OCR processing
+- Automatic media previews
+- File versioning
+- Attachment encryption keys
+- External file integrations
+- Data retention policies
+- Secure watermarking
+
+---
+
+# 24. Cursor AI Instructions
+
+When generating code for `ticket_attachments`:
+
+1. Never store binary files in MySQL.
+2. Always calculate SHA-256 hashes.
+3. Scan files before making them available.
+4. Use signed URLs for downloads.
+5. Store only metadata in the database.
+6. Enforce tenant isolation.
+7. Remove orphaned objects through background jobs.
+8. Keep ORM models, migrations, repositories, services, and documentation synchronized.
+
+---
+
+# 25. Definition of Done
+
+The `ticket_attachments` implementation is complete when:
+
+- Migration created
+- SQLAlchemy model implemented
+- Object storage integrated
+- Virus scanning implemented
+- Signed download URLs implemented
+- Repository implemented
+- Service implemented
+- Storage quota enforcement implemented
+- Download tracking implemented
+- Background cleanup implemented
+- Unit tests passing
+- Integration tests passing
+- Documentation updated
+
+---
+
+# 26. Architecture Notes
+
+Recommended attachment architecture:
+
+```
+User
+
+↓
+
+Upload API
+
+↓
+
+Validation
+
+↓
+
+Virus Scanner
+
+↓
+
+Object Storage
+
+↓
+
+Metadata (MySQL)
+
+↓
+
+Signed URL Service
+
+↓
+
+Authorized Download
+
+↓
+
+Audit Logging
+```
+
+The **ticket_attachments** table serves as the metadata layer between the support platform and the object storage service. It should remain lightweight, secure, auditable, and independent of the underlying storage provider through a storage abstraction layer.
+
+---
+
+# End of Document

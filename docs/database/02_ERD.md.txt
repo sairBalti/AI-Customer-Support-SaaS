@@ -1,0 +1,900 @@
+# Database Documentation
+# 02_ERD.md
+
+# AI Customer Support Agent Platform
+## Entity Relationship Diagram (ERD)
+
+**Version:** 1.0
+
+**Status:** Approved
+
+**Database:** MySQL 8+
+
+**ORM:** SQLAlchemy 2.x
+
+**Related Documents**
+
+- 00_Overview.md
+- 01_Design_Principles.md
+- 03_Tables/*
+- 04_Indexes.md
+
+---
+
+# 1. Purpose
+
+This document defines the logical and physical relationships between all database entities used in the AI Customer Support Platform.
+
+The ERD serves as the single source of truth for:
+
+- Database Developers
+- Backend Developers
+- QA Engineers
+- DevOps Engineers
+- Cursor AI
+
+This document must be reviewed before implementing any table or relationship.
+
+---
+
+# 2. Database Domains
+
+The database is divided into the following domains.
+
+```
+Authentication
+
+Company
+
+Knowledge Base
+
+AI
+
+Chat
+
+Ticketing
+
+Analytics
+
+Audit
+
+System Configuration
+```
+
+---
+
+# 3. Complete Entity Relationship Diagram
+
+```mermaid
+erDiagram
+
+COMPANIES ||--o{ USERS : has
+ROLES ||--o{ USERS : assigned_to
+
+COMPANIES ||--o{ DOCUMENTS : owns
+DOCUMENTS ||--o{ KNOWLEDGE_CHUNKS : contains
+
+COMPANIES ||--o{ CHAT_SESSIONS : owns
+USERS ||--o{ CHAT_SESSIONS : starts
+
+CHAT_SESSIONS ||--o{ CHAT_MESSAGES : contains
+
+COMPANIES ||--o{ TICKETS : owns
+CHAT_SESSIONS ||--o| TICKETS : creates
+
+USERS ||--o{ TICKETS : customer
+USERS ||--o{ TICKETS : assigned_agent
+
+TICKETS ||--o{ TICKET_MESSAGES : contains
+
+COMPANIES ||--|| AI_SETTINGS : configuration
+
+USERS ||--o{ REFRESH_TOKENS : owns
+
+USERS ||--o{ AUDIT_LOGS : performs
+
+COMPANIES ||--o{ AUDIT_LOGS : owns
+```
+
+---
+
+# 4. Domain Relationships
+
+## Authentication
+
+```
+Roles
+
+↓
+
+Users
+
+↓
+
+Refresh Tokens
+```
+
+Relationship
+
+```
+Role
+
+1 ---- *
+
+Users
+```
+
+A role can be assigned to many users.
+
+Each user has exactly one role.
+
+---
+
+## Company
+
+```
+Company
+
+↓
+
+Users
+
+↓
+
+Documents
+
+↓
+
+Tickets
+
+↓
+
+Chat Sessions
+
+↓
+
+AI Settings
+
+↓
+
+Audit Logs
+```
+
+Relationship
+
+```
+Company
+
+1 ---- *
+
+Users
+```
+
+One company owns many users.
+
+---
+
+## Knowledge Base
+
+```
+Company
+
+↓
+
+Documents
+
+↓
+
+Knowledge Chunks
+```
+
+Each document belongs to one company.
+
+Each document contains many chunks.
+
+Each chunk belongs to exactly one document.
+
+---
+
+## Chat
+
+```
+Customer
+
+↓
+
+Chat Session
+
+↓
+
+Chat Messages
+```
+
+One customer can have multiple sessions.
+
+Each session contains multiple messages.
+
+---
+
+## Ticketing
+
+```
+Chat Session
+
+↓
+
+Ticket
+
+↓
+
+Replies
+```
+
+Each ticket may originate from a chat session.
+
+Each ticket contains multiple replies.
+
+---
+
+## AI
+
+```
+Company
+
+↓
+
+AI Settings
+```
+
+One company has one AI configuration.
+
+---
+
+## Audit
+
+```
+User
+
+↓
+
+Audit Log
+```
+
+Every important action generates one audit log.
+
+---
+
+# 5. Cardinality
+
+## Companies → Users
+
+```
+1 Company
+
+↓
+
+Many Users
+```
+
+Mandatory relationship.
+
+---
+
+## Companies → Documents
+
+```
+1 Company
+
+↓
+
+Many Documents
+```
+
+Mandatory.
+
+---
+
+## Documents → Knowledge Chunks
+
+```
+1 Document
+
+↓
+
+Many Chunks
+```
+
+Mandatory.
+
+---
+
+## Users → Chat Sessions
+
+```
+1 User
+
+↓
+
+Many Sessions
+```
+
+---
+
+## Chat Sessions → Chat Messages
+
+```
+1 Session
+
+↓
+
+Many Messages
+```
+
+---
+
+## Chat Sessions → Tickets
+
+```
+1 Session
+
+↓
+
+0 or 1 Ticket
+```
+
+Not every conversation becomes a ticket.
+
+---
+
+## Tickets → Ticket Messages
+
+```
+1 Ticket
+
+↓
+
+Many Replies
+```
+
+---
+
+## Companies → AI Settings
+
+```
+1 Company
+
+↓
+
+1 AI Settings
+```
+
+Exactly one configuration.
+
+---
+
+## Users → Refresh Tokens
+
+```
+1 User
+
+↓
+
+Many Tokens
+```
+
+Supports multiple devices.
+
+---
+
+# 6. Primary Keys
+
+| Table | Primary Key |
+|----------|-------------|
+| companies | company_id |
+| users | user_id |
+| roles | role_id |
+| documents | document_id |
+| knowledge_chunks | chunk_id |
+| chat_sessions | session_id |
+| chat_messages | message_id |
+| tickets | ticket_id |
+| ticket_messages | ticket_message_id |
+| ai_settings | setting_id |
+| audit_logs | log_id |
+| refresh_tokens | token_id |
+
+---
+
+# 7. Foreign Keys
+
+## Users
+
+```
+company_id
+
+↓
+
+companies.company_id
+```
+
+```
+role_id
+
+↓
+
+roles.role_id
+```
+
+---
+
+## Documents
+
+```
+company_id
+
+↓
+
+companies.company_id
+```
+
+```
+uploaded_by
+
+↓
+
+users.user_id
+```
+
+---
+
+## Knowledge Chunks
+
+```
+document_id
+
+↓
+
+documents.document_id
+```
+
+```
+company_id
+
+↓
+
+companies.company_id
+```
+
+---
+
+## Chat Sessions
+
+```
+company_id
+
+↓
+
+companies.company_id
+```
+
+```
+customer_id
+
+↓
+
+users.user_id
+```
+
+---
+
+## Chat Messages
+
+```
+session_id
+
+↓
+
+chat_sessions.session_id
+```
+
+---
+
+## Tickets
+
+```
+company_id
+
+↓
+
+companies.company_id
+```
+
+```
+customer_id
+
+↓
+
+users.user_id
+```
+
+```
+assigned_agent
+
+↓
+
+users.user_id
+```
+
+```
+session_id
+
+↓
+
+chat_sessions.session_id
+```
+
+---
+
+## Ticket Messages
+
+```
+ticket_id
+
+↓
+
+tickets.ticket_id
+```
+
+```
+sender_id
+
+↓
+
+users.user_id
+```
+
+---
+
+## AI Settings
+
+```
+company_id
+
+↓
+
+companies.company_id
+```
+
+---
+
+## Audit Logs
+
+```
+company_id
+
+↓
+
+companies.company_id
+```
+
+```
+user_id
+
+↓
+
+users.user_id
+```
+
+---
+
+## Refresh Tokens
+
+```
+user_id
+
+↓
+
+users.user_id
+```
+
+---
+
+# 8. Relationship Rules
+
+## Company Deletion
+
+A company cannot be deleted if:
+
+- Users exist
+- Documents exist
+- Tickets exist
+- Chats exist
+
+Instead
+
+```
+status = INACTIVE
+```
+
+---
+
+## User Deletion
+
+Users are soft deleted.
+
+Historical chats remain.
+
+Historical tickets remain.
+
+Audit logs remain.
+
+---
+
+## Document Deletion
+
+Deleting a document removes:
+
+- Chunks
+- Embeddings
+
+Chat history remains.
+
+---
+
+## Chat Session
+
+Deleting chat sessions is prohibited.
+
+Only archive them.
+
+---
+
+## Ticket
+
+Tickets are never physically deleted.
+
+Closed tickets remain available for reporting.
+
+---
+
+# 9. Cascade Strategy
+
+| Relationship | Delete Rule |
+|---------------|------------|
+| Company → Users | RESTRICT |
+| Company → Documents | RESTRICT |
+| Company → Tickets | RESTRICT |
+| Company → Chat Sessions | RESTRICT |
+| Document → Chunks | CASCADE |
+| Chat Session → Messages | CASCADE |
+| Ticket → Ticket Messages | CASCADE |
+| User → Refresh Tokens | CASCADE |
+
+---
+
+# 10. Index Overview
+
+Every foreign key shall have an index.
+
+Required indexes include:
+
+```
+company_id
+
+email
+
+status
+
+created_at
+
+updated_at
+
+document_id
+
+session_id
+
+ticket_id
+```
+
+Composite indexes
+
+```
+(company_id, status)
+
+(company_id, created_at)
+
+(company_id, email)
+
+(session_id, created_at)
+
+(ticket_id, created_at)
+```
+
+---
+
+# 11. Data Flow
+
+## Customer Chat
+
+```
+Customer
+
+↓
+
+User
+
+↓
+
+Chat Session
+
+↓
+
+Messages
+
+↓
+
+AI
+
+↓
+
+Ticket (Optional)
+```
+
+---
+
+## Knowledge Upload
+
+```
+Company
+
+↓
+
+Document
+
+↓
+
+Chunks
+
+↓
+
+Embeddings
+
+↓
+
+Vector Database
+```
+
+---
+
+## Ticket Lifecycle
+
+```
+Chat
+
+↓
+
+Ticket
+
+↓
+
+Assignment
+
+↓
+
+Replies
+
+↓
+
+Resolved
+
+↓
+
+Closed
+```
+
+---
+
+# 12. Multi-Tenant Rules
+
+Every business entity references
+
+```
+company_id
+```
+
+Every API query
+
+```
+WHERE company_id = ?
+```
+
+No cross-company joins.
+
+No shared business records.
+
+---
+
+# 13. Future Tables
+
+The schema is designed for future expansion.
+
+Potential additions:
+
+```
+subscriptions
+
+payments
+
+invoices
+
+notification_templates
+
+email_logs
+
+api_keys
+
+webhooks
+
+crm_integrations
+
+billing_events
+
+ai_models
+
+ai_prompt_versions
+
+chat_feedback
+
+customer_profiles
+
+organizations
+
+teams
+
+permissions
+```
+
+These tables should follow the same naming, relationship, and indexing conventions.
+
+---
+
+# 14. ERD Validation Checklist
+
+Before implementing or modifying a table, verify:
+
+- Primary key defined.
+- Foreign keys defined.
+- Tenant ownership identified.
+- Required indexes added.
+- Cascade rule documented.
+- Soft delete policy considered.
+- Audit requirements reviewed.
+- ORM relationship mapped.
+- API impact assessed.
+- Documentation updated.
+
+---
+
+# 15. Cursor AI Instructions
+
+When generating models or migrations, Cursor should:
+
+1. Read this ERD before creating new relationships.
+2. Respect all cardinalities.
+3. Define foreign keys explicitly.
+4. Add indexes for foreign keys.
+5. Use `company_id` on all tenant-owned entities.
+6. Follow cascade and restrict policies.
+7. Keep SQLAlchemy relationships synchronized with the ERD.
+8. Update this document if relationships change.
+
+---
+
+# Conclusion
+
+This ERD defines the structural foundation of the platform. All database tables, ORM models, repositories, and migrations must remain consistent with the relationships and rules documented here. Any structural change requires updates to this ERD and the corresponding Architecture Decision Record (ADR).
+
+---
+
+**End of Document**
+

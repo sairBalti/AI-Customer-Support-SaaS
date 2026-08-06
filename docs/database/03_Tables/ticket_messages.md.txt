@@ -1,0 +1,729 @@
+# Database Documentation
+# 03_Tables/ticket_messages.md
+
+# Table Specification: ticket_messages
+
+**Database:** ai_customer_support
+
+**Schema:** public
+
+**Table Name:** ticket_messages
+
+**Module:** Human Support / Ticket Conversation
+
+**Owner:** Customer Support Platform Team
+
+**Status:** Approved
+
+**Version:** 1.0
+
+**Related Documents**
+
+- 00_Overview.md
+- 01_Design_Principles.md
+- 02_ERD.md
+- tickets.md
+- users.md
+- companies.md
+- ticket_attachments.md
+- notifications.md
+- audit_logs.md
+
+---
+
+# 1. Purpose
+
+The **ticket_messages** table stores every communication exchanged within a support ticket.
+
+Unlike **chat_messages**, which represent AI conversations, **ticket_messages** are designed for human support interactions.
+
+Messages may be created by:
+
+- Customer
+- Support Agent
+- Company Administrator
+- System
+
+Every message belongs to exactly one ticket.
+
+This table provides the complete communication history required for:
+
+- Customer support
+- Internal collaboration
+- Compliance
+- Auditing
+- Ticket resolution
+- Reporting
+
+---
+
+# 2. Business Responsibilities
+
+The ticket_messages table is responsible for
+
+- Conversation history
+- Customer replies
+- Agent replies
+- Internal notes
+- System events
+- Attachments
+- Read receipts
+- Message visibility
+- Audit support
+
+---
+
+# 3. Business Rules
+
+### Rule 1
+
+Every message belongs to exactly one ticket.
+
+---
+
+### Rule 2
+
+Messages cannot exist without a parent ticket.
+
+---
+
+### Rule 3
+
+Closed tickets cannot receive customer or public agent replies.
+
+Only internal administrative notes may be added if permitted by business rules.
+
+---
+
+### Rule 4
+
+Messages are immutable.
+
+Edits create a new version in future releases.
+
+---
+
+### Rule 5
+
+Messages must remain in chronological order.
+
+---
+
+### Rule 6
+
+Internal notes are never visible to customers.
+
+---
+
+### Rule 7
+
+Every message belongs to one company.
+
+---
+
+### Rule 8
+
+Soft deletion is not allowed.
+
+Messages are retained for compliance.
+
+---
+
+# 4. Relationships
+
+```
+Company
+    │
+    ├── Tickets
+    │      │
+    │      ├── Ticket Messages
+    │      │
+    │      ├── Attachments
+    │      │
+    │      └── Users
+```
+
+---
+
+# 5. Message Lifecycle
+
+```
+Ticket Created
+
+↓
+
+Customer Message
+
+↓
+
+Agent Reply
+
+↓
+
+Customer Reply
+
+↓
+
+Internal Notes
+
+↓
+
+Resolved
+
+↓
+
+Closed
+
+↓
+
+Archived
+```
+
+---
+
+# 6. Columns
+
+| Column | Type | Nullable | Default | Description |
+|----------|------|----------|----------|-------------|
+| ticket_message_id | BIGINT | No | Auto Increment | Primary Key |
+| ticket_id | BIGINT | No | — | Parent ticket |
+| company_id | BIGINT | No | — | Company |
+| sender_id | BIGINT | Yes | NULL | User |
+| parent_message_id | BIGINT | Yes | NULL | Reply reference |
+| message_uuid | CHAR(36) | No | UUID | Public identifier |
+| sender_type | ENUM | No | CUSTOMER | Sender type |
+| message_type | ENUM | No | TEXT | Message type |
+| visibility | ENUM | No | PUBLIC | Visibility |
+| message_text | LONGTEXT | No | — | Message body |
+| formatted_message | LONGTEXT | Yes | NULL | HTML/Markdown |
+| attachment_count | INT | No | 0 | Number of attachments |
+| is_first_response | BOOLEAN | No | FALSE | First agent reply |
+| is_read | BOOLEAN | No | FALSE | Read flag |
+| read_at | DATETIME | Yes | NULL | Read timestamp |
+| metadata | JSON | Yes | NULL | Additional metadata |
+| created_at | TIMESTAMP | No | CURRENT_TIMESTAMP | Created |
+
+---
+
+# 7. Enumerations
+
+## sender_type
+
+```
+CUSTOMER
+
+AGENT
+
+ADMIN
+
+SYSTEM
+```
+
+---
+
+## message_type
+
+```
+TEXT
+
+MARKDOWN
+
+FILE
+
+IMAGE
+
+SYSTEM_EVENT
+
+INTERNAL_NOTE
+```
+
+---
+
+## visibility
+
+```
+PUBLIC
+
+PRIVATE
+```
+
+PRIVATE messages are visible only to authorized staff.
+
+---
+
+# 8. Primary Key
+
+```
+ticket_message_id
+```
+
+BIGINT AUTO_INCREMENT
+
+---
+
+# 9. Foreign Keys
+
+## Ticket
+
+```
+ticket_id
+
+↓
+
+tickets.ticket_id
+```
+
+Delete Rule
+
+```
+CASCADE
+```
+
+---
+
+## Company
+
+```
+company_id
+
+↓
+
+companies.company_id
+```
+
+Delete Rule
+
+```
+RESTRICT
+```
+
+---
+
+## Sender
+
+```
+sender_id
+
+↓
+
+users.user_id
+```
+
+Delete Rule
+
+```
+SET NULL
+```
+
+---
+
+## Parent Message
+
+```
+parent_message_id
+
+↓
+
+ticket_messages.ticket_message_id
+```
+
+Delete Rule
+
+```
+SET NULL
+```
+
+---
+
+# 10. Unique Constraints
+
+```
+message_uuid
+```
+
+---
+
+# 11. Indexes
+
+Primary
+
+```
+ticket_message_id
+```
+
+Unique
+
+```
+message_uuid
+```
+
+Indexes
+
+```
+ticket_id
+
+company_id
+
+sender_id
+
+created_at
+
+visibility
+
+is_read
+```
+
+Composite
+
+```
+(ticket_id, created_at)
+
+(company_id, ticket_id)
+
+(ticket_id, visibility)
+
+(ticket_id, sender_type)
+
+(company_id, created_at)
+```
+
+---
+
+# 12. Validation Rules
+
+Message Text
+
+- Required
+- UTF-8
+- Maximum configured size
+
+---
+
+Attachment Count
+
+Cannot be negative.
+
+---
+
+Visibility
+
+Must be
+
+```
+PUBLIC
+
+PRIVATE
+```
+
+---
+
+# 13. Conversation Flow
+
+```
+Customer Reply
+
+↓
+
+Save Message
+
+↓
+
+Notify Assigned Agent
+
+↓
+
+Agent Opens Ticket
+
+↓
+
+Agent Reply
+
+↓
+
+Notify Customer
+
+↓
+
+Conversation Continues
+```
+
+---
+
+# 14. CRUD Operations
+
+## Create
+
+Create new ticket message.
+
+---
+
+## Read
+
+Retrieve conversation.
+
+---
+
+## Update
+
+Only
+
+- Read status
+- Metadata
+
+Message content remains immutable.
+
+---
+
+## Delete
+
+Not supported.
+
+---
+
+# 15. SQLAlchemy Model Example
+
+```python
+class TicketMessage(Base):
+
+    __tablename__ = "ticket_messages"
+
+    ticket_message_id = mapped_column(
+        BigInteger,
+        primary_key=True
+    )
+
+    ticket_id = mapped_column(
+        ForeignKey("tickets.ticket_id"),
+        nullable=False
+    )
+
+    company_id = mapped_column(
+        ForeignKey("companies.company_id"),
+        nullable=False
+    )
+
+    sender_id = mapped_column(
+        ForeignKey("users.user_id")
+    )
+
+    ticket = relationship(
+        "Ticket",
+        back_populates="messages"
+    )
+```
+
+---
+
+# 16. Repository Responsibilities
+
+TicketMessageRepository should provide
+
+- Create message
+- Get message
+- Get by UUID
+- List ticket messages
+- Update read status
+- Count unread messages
+- Search conversation
+- Count attachments
+
+---
+
+# 17. Service Responsibilities
+
+TicketMessageService should
+
+- Validate ticket status
+- Create messages
+- Send notifications
+- Update read status
+- Track first response
+- Update ticket activity
+- Support internal notes
+- Generate audit events
+
+---
+
+# 18. Related API Endpoints
+
+```
+POST   /api/v1/tickets/{id}/messages
+
+GET    /api/v1/tickets/{id}/messages
+
+GET    /api/v1/ticket-messages/{id}
+
+PATCH  /api/v1/ticket-messages/{id}/read
+
+POST   /api/v1/ticket-messages/{id}/attachments
+
+GET    /api/v1/tickets/{id}/timeline
+```
+
+---
+
+# 19. Sample Record
+
+```json
+{
+    "ticket_message_id": 701,
+    "ticket_id": 205,
+    "company_id": 1,
+    "sender_type": "AGENT",
+    "visibility": "PUBLIC",
+    "message_text": "We've identified the issue and are processing your refund.",
+    "attachment_count": 1,
+    "is_first_response": true,
+    "is_read": true
+}
+```
+
+---
+
+# 20. Notification Flow
+
+```
+Customer Reply
+
+↓
+
+Save Message
+
+↓
+
+Notification Queue
+
+↓
+
+Assigned Agent
+
+↓
+
+Email
+
+↓
+
+In-App Notification
+
+↓
+
+Push Notification
+```
+
+---
+
+# 21. Security Considerations
+
+- Enforce tenant isolation using `company_id`.
+- Customers may view only messages from their own tickets.
+- Internal notes must never be exposed to customers.
+- Validate sender permissions before creating messages.
+- Sanitize HTML and Markdown.
+- Record all message events in audit logs.
+
+---
+
+# 22. Performance Considerations
+
+- Paginate long conversations.
+- Index ticket timelines.
+- Cache unread counts.
+- Queue notifications asynchronously.
+- Lazy-load attachments.
+- Archive historical conversations if required.
+
+---
+
+# 23. Future Enhancements
+
+- Message editing history
+- Rich text editor
+- Emoji reactions
+- Quoted replies
+- Mentions (@username)
+- Threaded discussions
+- Voice messages
+- AI-generated reply suggestions
+- Automatic translation
+- Message pinning
+
+---
+
+# 24. Cursor AI Instructions
+
+When generating code for `ticket_messages`:
+
+1. Never delete ticket messages.
+2. Preserve chronological ordering.
+3. Support public and private visibility.
+4. Trigger notifications asynchronously.
+5. Update ticket activity after every message.
+6. Record first-response metrics.
+7. Enforce tenant isolation.
+8. Keep ORM models, migrations, repositories, services, and documentation synchronized.
+
+---
+
+# 25. Definition of Done
+
+The `ticket_messages` implementation is complete when:
+
+- Migration created
+- SQLAlchemy model implemented
+- Repository implemented
+- Service implemented
+- Notification integration completed
+- Read receipts implemented
+- Internal notes implemented
+- Timeline endpoint implemented
+- Unit tests passing
+- Integration tests passing
+- Documentation updated
+
+---
+
+# 26. Architecture Notes
+
+Recommended workflow
+
+```
+Customer
+
+↓
+
+Ticket
+
+↓
+
+Ticket Message
+
+↓
+
+Attachment (Optional)
+
+↓
+
+Notification Queue
+
+↓
+
+Assigned Agent
+
+↓
+
+Reply
+
+↓
+
+Customer Notification
+
+↓
+
+Timeline Update
+```
+
+The **ticket_messages** table is the authoritative source for all human support communication. It should remain immutable, auditable, and optimized for fast retrieval while integrating seamlessly with notifications, attachments, SLA tracking, and reporting.
+
+---
+
+# End of Document

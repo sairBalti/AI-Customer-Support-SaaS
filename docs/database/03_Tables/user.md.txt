@@ -1,0 +1,663 @@
+# Database Documentation
+# 03_Tables/users.md
+
+# Table Specification: users
+
+**Database:** ai_customer_support
+
+**Schema:** public
+
+**Table Name:** users
+
+**Module:** Authentication & User Management
+
+**Owner:** Platform Core
+
+**Status:** Approved
+
+**Version:** 1.0
+
+**Related Documents**
+
+- 00_Overview.md
+- 01_Design_Principles.md
+- 02_ERD.md
+- companies.md
+- roles.md
+- refresh_tokens.md
+- audit_logs.md
+
+---
+
+# 1. Purpose
+
+The **users** table stores all authenticated users within the platform.
+
+Every user belongs to exactly one company (tenant) and is assigned one role.
+
+Users can be:
+
+- Super Administrators
+- Company Administrators
+- Support Agents
+- Customers
+
+The users table is responsible for authentication, authorization, ownership, auditing, and all user-related operations.
+
+---
+
+# 2. Business Responsibilities
+
+The users table manages:
+
+- User authentication
+- User profile
+- Password management
+- Role assignment
+- Company membership
+- Email verification
+- Account status
+- Login tracking
+- User preferences
+- Audit ownership
+
+---
+
+# 3. Business Rules
+
+### Rule 1
+
+Every user belongs to exactly one company.
+
+Exception:
+
+System Super Administrators may belong to the platform company.
+
+---
+
+### Rule 2
+
+Each email address must be unique across the platform.
+
+---
+
+### Rule 3
+
+A user has exactly one role.
+
+---
+
+### Rule 4
+
+Passwords are never stored in plain text.
+
+Only Argon2id (preferred) or bcrypt hashes are stored.
+
+---
+
+### Rule 5
+
+A deleted user is soft deleted.
+
+Historical records remain.
+
+---
+
+### Rule 6
+
+Users cannot access another company's data.
+
+---
+
+### Rule 7
+
+A suspended user cannot log in.
+
+---
+
+### Rule 8
+
+Email verification is required before accessing protected resources (configurable).
+
+---
+
+### Rule 9
+
+Company Administrators cannot promote themselves to Super Administrator.
+
+---
+
+### Rule 10
+
+Users may be logged in from multiple devices simultaneously.
+
+---
+
+# 4. Relationships
+
+```
+Company
+
+│
+
+└── Users
+
+      │
+
+      ├── Refresh Tokens
+
+      ├── Chat Sessions
+
+      ├── Tickets (Customer)
+
+      ├── Tickets (Assigned Agent)
+
+      ├── Ticket Messages
+
+      ├── Audit Logs
+
+      └── Documents (Uploaded By)
+```
+
+---
+
+# 5. Columns
+
+| Column | Type | Nullable | Default | Description |
+|----------|------|----------|----------|-------------|
+| user_id | BIGINT | No | Auto Increment | Primary Key |
+| company_id | BIGINT | No | — | Company reference |
+| role_id | INT | No | — | Role reference |
+| employee_id | VARCHAR(50) | Yes | NULL | Internal employee code |
+| first_name | VARCHAR(100) | No | — | First name |
+| last_name | VARCHAR(100) | No | — | Last name |
+| display_name | VARCHAR(150) | Yes | NULL | Display name |
+| email | VARCHAR(255) | No | — | Login email |
+| phone | VARCHAR(30) | Yes | NULL | Contact number |
+| password_hash | VARCHAR(255) | No | — | Password hash |
+| avatar_url | VARCHAR(500) | Yes | NULL | Profile image |
+| department | VARCHAR(100) | Yes | NULL | Department |
+| job_title | VARCHAR(100) | Yes | NULL | Job title |
+| language | VARCHAR(20) | No | en | Preferred language |
+| timezone | VARCHAR(100) | No | UTC | User timezone |
+| is_email_verified | BOOLEAN | No | FALSE | Email verification |
+| email_verified_at | DATETIME | Yes | NULL | Verification timestamp |
+| failed_login_attempts | INT | No | 0 | Failed login count |
+| locked_until | DATETIME | Yes | NULL | Temporary account lock |
+| last_login_at | DATETIME | Yes | NULL | Last successful login |
+| last_login_ip | VARCHAR(45) | Yes | NULL | IPv4/IPv6 address |
+| status | ENUM | No | ACTIVE | Account status |
+| created_at | TIMESTAMP | No | CURRENT_TIMESTAMP | Created date |
+| updated_at | TIMESTAMP | No | CURRENT_TIMESTAMP | Updated date |
+| deleted_at | TIMESTAMP | Yes | NULL | Soft delete |
+
+---
+
+# 6. Enumerations
+
+## status
+
+```
+ACTIVE
+
+INACTIVE
+
+SUSPENDED
+
+LOCKED
+
+PENDING_VERIFICATION
+```
+
+---
+
+# 7. Primary Key
+
+```
+user_id
+```
+
+BIGINT
+
+AUTO_INCREMENT
+
+---
+
+# 8. Foreign Keys
+
+```
+company_id
+
+↓
+
+companies.company_id
+```
+
+```
+role_id
+
+↓
+
+roles.role_id
+```
+
+---
+
+# 9. Unique Constraints
+
+Platform-wide
+
+```
+email
+```
+
+Tenant-specific (optional, if implemented)
+
+```
+(company_id, employee_id)
+```
+
+---
+
+# 10. Indexes
+
+Primary
+
+```
+user_id
+```
+
+Unique
+
+```
+email
+```
+
+Indexes
+
+```
+company_id
+
+role_id
+
+status
+
+created_at
+
+last_login_at
+
+is_email_verified
+```
+
+Composite
+
+```
+(company_id, status)
+
+(company_id, role_id)
+
+(company_id, email)
+
+(company_id, last_login_at)
+```
+
+---
+
+# 11. Validation Rules
+
+## First Name
+
+- Required
+- 2–100 characters
+
+---
+
+## Last Name
+
+- Required
+- 2–100 characters
+
+---
+
+## Email
+
+- Required
+- RFC-compliant email format
+- Unique
+- Lowercase before storage
+
+---
+
+## Password
+
+Must satisfy password policy:
+
+- Minimum 12 characters
+- At least one uppercase letter
+- At least one lowercase letter
+- At least one number
+- At least one special character
+
+Passwords are hashed before persistence.
+
+---
+
+## Phone
+
+Optional.
+
+Store in E.164 format where possible.
+
+---
+
+## Avatar URL
+
+Optional.
+
+Must be a valid HTTPS URL or approved object storage path.
+
+---
+
+# 12. Account Lifecycle
+
+```
+Invitation
+
+↓
+
+Registration
+
+↓
+
+Email Verification
+
+↓
+
+Active
+
+↓
+
+Locked (Temporary)
+
+↓
+
+Suspended
+
+↓
+
+Inactive
+
+↓
+
+Soft Deleted
+```
+
+---
+
+# 13. Authentication Rules
+
+Authentication uses:
+
+- JWT Access Token
+- Refresh Token
+
+Access tokens are short-lived.
+
+Refresh tokens are rotated.
+
+Password hashes are never returned by APIs.
+
+---
+
+# 14. Authorization
+
+Authorization is handled using Role-Based Access Control (RBAC).
+
+Supported roles:
+
+- Super Admin
+- Company Admin
+- Support Agent
+- Customer
+
+Permission checks occur before every protected operation.
+
+---
+
+# 15. CRUD Operations
+
+## Create
+
+- Register user
+- Invite user
+- Create support agent
+
+---
+
+## Read
+
+- User profile
+- User details
+- Team members
+
+---
+
+## Update
+
+- Profile
+- Password
+- Avatar
+- Department
+- Role (authorized users only)
+
+---
+
+## Delete
+
+Soft delete only.
+
+---
+
+# 16. SQLAlchemy Model Example
+
+```python
+class User(Base):
+    __tablename__ = "users"
+
+    user_id = mapped_column(BigInteger, primary_key=True)
+
+    company_id = mapped_column(
+        ForeignKey("companies.company_id"),
+        nullable=False
+    )
+
+    role_id = mapped_column(
+        ForeignKey("roles.role_id"),
+        nullable=False
+    )
+
+    email = mapped_column(
+        String(255),
+        unique=True,
+        nullable=False
+    )
+
+    password_hash = mapped_column(String(255))
+
+    company = relationship(
+        "Company",
+        back_populates="users"
+    )
+
+    role = relationship(
+        "Role",
+        back_populates="users"
+    )
+```
+
+---
+
+# 17. Repository Responsibilities
+
+The UserRepository should provide:
+
+- Create user
+- Get by ID
+- Get by email
+- Get by company
+- Update profile
+- Update password hash
+- Update login information
+- Soft delete user
+- List users
+- Search users
+- Count users by company
+
+Repository methods must not contain business rules.
+
+---
+
+# 18. Service Responsibilities
+
+The UserService is responsible for:
+
+- Registration
+- Password hashing
+- Email verification
+- Invitation acceptance
+- Account locking
+- Failed login tracking
+- Password reset
+- Profile updates
+- Role assignment
+- Permission validation
+
+---
+
+# 19. Related API Endpoints
+
+```
+POST   /api/v1/auth/register
+
+POST   /api/v1/auth/login
+
+POST   /api/v1/auth/logout
+
+POST   /api/v1/auth/refresh
+
+POST   /api/v1/auth/forgot-password
+
+POST   /api/v1/auth/reset-password
+
+POST   /api/v1/auth/verify-email
+
+GET    /api/v1/users
+
+GET    /api/v1/users/{id}
+
+PUT    /api/v1/users/{id}
+
+PATCH  /api/v1/users/{id}/status
+
+PATCH  /api/v1/users/{id}/role
+
+DELETE /api/v1/users/{id}
+```
+
+---
+
+# 20. Sample Record
+
+```json
+{
+  "user_id": 101,
+  "company_id": 1,
+  "role_id": 2,
+  "first_name": "Sarah",
+  "last_name": "Ahmed",
+  "display_name": "Sarah Ahmed",
+  "email": "sarah@acme.com",
+  "department": "Customer Support",
+  "job_title": "Support Manager",
+  "language": "en",
+  "timezone": "Asia/Karachi",
+  "status": "ACTIVE",
+  "is_email_verified": true
+}
+```
+
+---
+
+# 21. Security Considerations
+
+- Never return `password_hash` in API responses.
+- Never log passwords.
+- Rotate refresh tokens after use.
+- Track failed login attempts.
+- Lock accounts after configurable failed attempts.
+- Record login activity in `audit_logs`.
+- Enforce tenant isolation on every query.
+
+---
+
+# 22. Performance Considerations
+
+- Cache authenticated user profiles.
+- Index email lookups.
+- Paginate user lists.
+- Use lazy loading for optional relationships.
+- Avoid unnecessary joins when only identity information is required.
+
+---
+
+# 23. Future Enhancements
+
+Future fields may include:
+
+- mfa_enabled
+- mfa_secret
+- recovery_codes
+- preferred_theme
+- notification_preferences
+- profile_visibility
+- ai_personalization_settings
+- external_identity_provider
+- biometric_enabled
+
+---
+
+# 24. Cursor AI Instructions
+
+When generating code for `users`:
+
+1. Never store plaintext passwords.
+2. Always hash passwords before persistence.
+3. Always enforce company isolation.
+4. Never bypass RBAC checks.
+5. Never expose sensitive fields in DTOs.
+6. Keep ORM models, migrations, repositories, and documentation synchronized.
+7. Update `last_login_at` only after successful authentication.
+8. Record security-sensitive actions in `audit_logs`.
+
+---
+
+# 25. Definition of Done
+
+The `users` table implementation is complete when:
+
+- Migration created
+- SQLAlchemy model implemented
+- Pydantic schemas created
+- Repository implemented
+- Service implemented
+- Authentication integrated
+- RBAC enforced
+- Password hashing implemented
+- Unit tests passing
+- Integration tests passing
+- Security review completed
+- Documentation updated
+
+---
+
+# End of Document

@@ -1,0 +1,716 @@
+# Database Documentation
+# 03_Tables/knowledge_chunks.md
+
+# Table Specification: knowledge_chunks
+
+**Database:** ai_customer_support
+
+**Schema:** public
+
+**Table Name:** knowledge_chunks
+
+**Module:** AI Knowledge Base (RAG)
+
+**Owner:** AI Platform Team
+
+**Status:** Approved
+
+**Version:** 1.0
+
+**Related Documents**
+
+- 00_Overview.md
+- 01_Design_Principles.md
+- 02_ERD.md
+- documents.md
+- companies.md
+- ai_settings.md
+- vector_indexes.md *(Future)*
+- retrieval_logs.md *(Future)*
+
+---
+
+# 1. Purpose
+
+The **knowledge_chunks** table stores the processed text fragments extracted from uploaded documents.
+
+After a document is uploaded, it is parsed and divided into smaller semantic chunks. Each chunk is then converted into an embedding and stored in the configured vector database (ChromaDB, Pinecone, Qdrant, Weaviate, etc.).
+
+This table **does not store embedding vectors**.
+
+Instead, it stores:
+
+- Chunk metadata
+- Original text
+- Chunk ordering
+- Embedding references
+- Retrieval metadata
+
+The vector itself remains in the vector database.
+
+---
+
+# 2. Why Chunking?
+
+Large Language Models cannot efficiently process very large documents.
+
+Instead:
+
+```
+Upload Document
+
+↓
+
+Extract Text
+
+↓
+
+Clean Text
+
+↓
+
+Split Into Chunks
+
+↓
+
+Generate Embeddings
+
+↓
+
+Store Embeddings
+
+↓
+
+AI Search
+```
+
+Example
+
+Original Document
+
+```
+Employee Handbook
+
+120 Pages
+```
+
+↓
+
+Split into
+
+```
+Chunk 1
+
+Chunk 2
+
+Chunk 3
+
+...
+
+Chunk 356
+```
+
+When a customer asks
+
+> "How many vacation days do employees receive?"
+
+Only the relevant chunks are retrieved.
+
+---
+
+# 3. Business Responsibilities
+
+The knowledge_chunks table is responsible for
+
+- Chunk storage
+- Chunk ordering
+- Document mapping
+- Embedding references
+- AI retrieval metadata
+- Search optimization
+- Version tracking
+
+---
+
+# 4. Business Rules
+
+### Rule 1
+
+Every chunk belongs to exactly one company.
+
+---
+
+### Rule 2
+
+Every chunk belongs to exactly one document.
+
+---
+
+### Rule 3
+
+Chunk order must be preserved.
+
+---
+
+### Rule 4
+
+Embeddings are stored outside MySQL.
+
+---
+
+### Rule 5
+
+Deleting a document deletes all associated chunks.
+
+---
+
+### Rule 6
+
+Chunks cannot exist without a parent document.
+
+---
+
+### Rule 7
+
+Chunk text is immutable after indexing.
+
+Re-indexing creates new chunks.
+
+---
+
+### Rule 8
+
+Chunk size is determined by AI settings.
+
+Example
+
+```
+800 Tokens
+
+100 Token Overlap
+```
+
+---
+
+# 5. Relationships
+
+```
+Company
+
+│
+
+└── Documents
+
+      │
+
+      └── Knowledge Chunks
+
+              │
+
+              ├── Vector Database
+
+              ├── Retrieval Logs
+
+              └── AI Answers
+```
+
+---
+
+# 6. Columns
+
+| Column | Type | Nullable | Default | Description |
+|----------|------|----------|----------|-------------|
+| chunk_id | BIGINT | No | Auto Increment | Primary Key |
+| company_id | BIGINT | No | — | Company |
+| document_id | BIGINT | No | — | Parent document |
+| chunk_number | INT | No | — | Sequential order |
+| chunk_uuid | CHAR(36) | No | UUID | Stable identifier |
+| embedding_id | VARCHAR(255) | No | — | Vector DB identifier |
+| chunk_text | LONGTEXT | No | — | Chunk content |
+| token_count | INT | No | 0 | Number of tokens |
+| character_count | INT | No | 0 | Number of characters |
+| page_number | INT | Yes | NULL | Original page |
+| section_title | VARCHAR(255) | Yes | NULL | Section heading |
+| overlap_previous | BOOLEAN | No | FALSE | Uses overlap |
+| overlap_next | BOOLEAN | No | FALSE | Uses overlap |
+| embedding_provider | VARCHAR(100) | No | — | OpenAI/Gemini/etc. |
+| embedding_model | VARCHAR(100) | No | — | Embedding model |
+| embedding_dimension | INT | No | — | Vector dimension |
+| language | VARCHAR(20) | No | en | Language |
+| version | INT | No | 1 | Chunk version |
+| retrieval_count | BIGINT | No | 0 | Number of AI retrievals |
+| last_retrieved_at | DATETIME | Yes | NULL | Last retrieval |
+| metadata | JSON | Yes | NULL | Additional metadata |
+| created_at | TIMESTAMP | No | CURRENT_TIMESTAMP | Created |
+| updated_at | TIMESTAMP | No | CURRENT_TIMESTAMP | Updated |
+
+---
+
+# 7. Primary Key
+
+```
+chunk_id
+```
+
+BIGINT AUTO_INCREMENT
+
+---
+
+# 8. Foreign Keys
+
+## Company
+
+```
+company_id
+
+↓
+
+companies.company_id
+```
+
+Delete Rule
+
+```
+RESTRICT
+```
+
+---
+
+## Document
+
+```
+document_id
+
+↓
+
+documents.document_id
+```
+
+Delete Rule
+
+```
+CASCADE
+```
+
+Deleting a document automatically removes its chunks.
+
+---
+
+# 9. Unique Constraints
+
+```
+(document_id, chunk_number)
+```
+
+```
+chunk_uuid
+```
+
+```
+embedding_id
+```
+
+---
+
+# 10. Indexes
+
+Primary
+
+```
+chunk_id
+```
+
+Indexes
+
+```
+company_id
+
+document_id
+
+chunk_number
+
+page_number
+
+embedding_id
+
+language
+
+retrieval_count
+```
+
+Composite
+
+```
+(document_id, chunk_number)
+
+(company_id, document_id)
+
+(company_id, language)
+
+(document_id, page_number)
+```
+
+---
+
+# 11. Validation Rules
+
+## Chunk Number
+
+- Required
+- Starts at 1
+- Sequential
+
+---
+
+## Chunk UUID
+
+Must be UUID v4.
+
+---
+
+## Embedding ID
+
+Must match the identifier returned by the vector database.
+
+---
+
+## Token Count
+
+Must be greater than zero.
+
+---
+
+## Chunk Text
+
+- Required
+- Cannot be empty
+- Maximum size controlled by AI configuration
+
+---
+
+## Embedding Dimension
+
+Must match the selected embedding model.
+
+Examples
+
+```
+1536
+
+3072
+```
+
+---
+
+# 12. Chunk Generation Pipeline
+
+```
+Document Upload
+
+↓
+
+Extract Text
+
+↓
+
+Normalize
+
+↓
+
+Split Into Chunks
+
+↓
+
+Generate UUID
+
+↓
+
+Generate Embedding
+
+↓
+
+Store Vector
+
+↓
+
+Insert Database Record
+
+↓
+
+Completed
+```
+
+---
+
+# 13. CRUD Operations
+
+## Create
+
+Generated automatically during indexing.
+
+---
+
+## Read
+
+Retrieve chunk metadata.
+
+---
+
+## Update
+
+Only retrieval statistics.
+
+Chunk text should never be modified.
+
+---
+
+## Delete
+
+Automatically removed when parent document is deleted.
+
+---
+
+# 14. SQLAlchemy Model Example
+
+```python
+class KnowledgeChunk(Base):
+    __tablename__ = "knowledge_chunks"
+
+    chunk_id = mapped_column(
+        BigInteger,
+        primary_key=True
+    )
+
+    company_id = mapped_column(
+        ForeignKey("companies.company_id"),
+        nullable=False
+    )
+
+    document_id = mapped_column(
+        ForeignKey("documents.document_id"),
+        nullable=False
+    )
+
+    chunk_text = mapped_column(
+        Text,
+        nullable=False
+    )
+
+    embedding_id = mapped_column(
+        String(255),
+        unique=True
+    )
+
+    document = relationship(
+        "Document",
+        back_populates="chunks"
+    )
+```
+
+---
+
+# 15. Repository Responsibilities
+
+KnowledgeChunkRepository should provide
+
+- Bulk insert chunks
+- Get chunks by document
+- Get chunk by ID
+- Get chunk by embedding ID
+- Update retrieval statistics
+- Delete document chunks
+- Count chunks
+- Search metadata
+
+---
+
+# 16. Service Responsibilities
+
+KnowledgeChunkService should
+
+- Generate chunks
+- Generate UUIDs
+- Calculate token count
+- Call embedding service
+- Store vectors
+- Persist metadata
+- Validate embedding dimensions
+- Re-index documents
+- Remove orphaned vectors
+
+---
+
+# 17. Related API Endpoints
+
+Normally internal.
+
+Administrative endpoints
+
+```
+GET    /api/v1/documents/{id}/chunks
+
+GET    /api/v1/chunks/{id}
+
+POST   /api/v1/documents/{id}/reindex
+
+DELETE /api/v1/documents/{id}/chunks
+```
+
+---
+
+# 18. Sample Record
+
+```json
+{
+  "chunk_id": 1001,
+  "company_id": 1,
+  "document_id": 52,
+  "chunk_number": 8,
+  "embedding_id": "vec_6ab53c29",
+  "token_count": 732,
+  "page_number": 14,
+  "language": "en",
+  "embedding_provider": "OpenAI",
+  "embedding_model": "text-embedding-3-large",
+  "embedding_dimension": 3072,
+  "retrieval_count": 52
+}
+```
+
+---
+
+# 19. AI Retrieval Flow
+
+```
+Customer Question
+
+↓
+
+Generate Query Embedding
+
+↓
+
+Search Vector Database
+
+↓
+
+Top K Chunks
+
+↓
+
+Retrieve Chunk Metadata
+
+↓
+
+LLM Prompt
+
+↓
+
+AI Response
+```
+
+The LLM receives only the retrieved chunks, not the entire document.
+
+---
+
+# 20. Security Considerations
+
+- Every chunk belongs to one tenant.
+- Never expose chunks from another company.
+- Encrypt sensitive metadata where required.
+- Validate document ownership before retrieval.
+- Delete vectors when chunks are deleted.
+- Record administrative re-index operations in audit logs.
+
+---
+
+# 21. Performance Considerations
+
+- Bulk insert chunks during indexing.
+- Batch embedding requests.
+- Store vectors only in the vector database.
+- Cache frequently retrieved metadata.
+- Avoid storing duplicate chunks.
+- Optimize retrieval statistics updates.
+
+---
+
+# 22. Future Enhancements
+
+- Semantic chunking
+- Hierarchical chunking
+- Parent-child chunks
+- Multi-modal chunks
+- Image embeddings
+- Audio transcript chunks
+- Video transcript chunks
+- Automatic language translation
+- Hybrid keyword + vector search
+- Chunk quality scoring
+
+---
+
+# 23. Cursor AI Instructions
+
+When generating code for `knowledge_chunks`:
+
+1. Never store embedding vectors in MySQL.
+2. Store only embedding identifiers.
+3. Generate UUIDs for every chunk.
+4. Preserve chunk ordering.
+5. Use bulk inserts for indexing.
+6. Remove vectors when deleting chunks.
+7. Keep vector database and MySQL synchronized.
+8. Update retrieval statistics asynchronously.
+9. Keep ORM models, migrations, repositories, services, and documentation synchronized.
+
+---
+
+# 24. Definition of Done
+
+The `knowledge_chunks` table implementation is complete when:
+
+- Migration created
+- SQLAlchemy model implemented
+- Chunking pipeline implemented
+- Embedding service integrated
+- Vector database integration completed
+- Repository implemented
+- Service implemented
+- Background jobs implemented
+- Retrieval statistics implemented
+- Bulk indexing optimized
+- Unit tests passing
+- Integration tests passing
+- Documentation updated
+
+---
+
+# 25. Architecture Notes
+
+## Recommended Chunk Size
+
+| Content Type | Chunk Size | Overlap |
+|--------------|-----------:|---------:|
+| FAQ | 300–500 tokens | 50 |
+| Product Documentation | 500–800 tokens | 100 |
+| User Manuals | 700–1,000 tokens | 150 |
+| Policies & Contracts | 800–1,200 tokens | 200 |
+
+---
+
+## Supported Vector Databases
+
+- ChromaDB
+- Pinecone
+- Qdrant
+- Weaviate
+- Milvus
+- pgvector *(Future Option)*
+
+The implementation should abstract vector operations behind a `VectorStoreService` interface so providers can be swapped without changing application logic.
+
+---
+
+# End of Document
+

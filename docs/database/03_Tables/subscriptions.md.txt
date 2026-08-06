@@ -1,0 +1,771 @@
+# Database Documentation
+# 03_Tables/subscriptions.md
+
+# Table Specification: subscriptions
+
+**Database:** ai_customer_support
+
+**Schema:** public
+
+**Table Name:** subscriptions
+
+**Module:** Billing & Subscription Management
+
+**Owner:** Platform Billing Team
+
+**Status:** Approved
+
+**Version:** 1.0
+
+**Classification:** Financial
+
+---
+
+# Related Documents
+
+- 00_Overview.md
+- 01_Design_Principles.md
+- 02_ERD.md
+- companies.md
+- users.md
+- api_keys.md
+- ai_settings.md
+- audit_logs.md
+- invoices.md *(Future)*
+- payments.md *(Future)*
+- subscription_plans.md *(Future)*
+
+---
+
+# 1. Purpose
+
+The **subscriptions** table stores every company's active and historical subscription.
+
+This table determines which features, quotas, limits, AI capabilities, storage limits, and billing information are available for each tenant.
+
+A company can have only one active subscription at a time, but historical subscriptions are preserved for reporting and auditing.
+
+The subscription system supports:
+
+- Free Trial
+- Monthly Billing
+- Annual Billing
+- Enterprise Contracts
+- Custom Plans
+- Manual Billing
+- Auto Renewal
+
+---
+
+# 2. Business Responsibilities
+
+The subscriptions table is responsible for
+
+- Subscription lifecycle
+- Billing period management
+- Feature entitlement
+- Quota enforcement
+- Renewal tracking
+- Trial management
+- Subscription upgrades
+- Subscription downgrades
+- Subscription cancellations
+- Financial reporting
+
+---
+
+# 3. Business Rules
+
+### Rule 1
+
+Every subscription belongs to one company.
+
+---
+
+### Rule 2
+
+A company can have only one ACTIVE subscription.
+
+---
+
+### Rule 3
+
+Historical subscriptions are never deleted.
+
+---
+
+### Rule 4
+
+Subscription changes create Audit Logs.
+
+---
+
+### Rule 5
+
+Expired subscriptions automatically become inactive.
+
+---
+
+### Rule 6
+
+Feature access is determined from the active subscription.
+
+---
+
+### Rule 7
+
+Trials automatically expire.
+
+---
+
+### Rule 8
+
+Downgrades take effect at the next billing cycle unless immediate downgrade is requested.
+
+---
+
+### Rule 9
+
+Enterprise subscriptions may not have automatic renewal.
+
+---
+
+# 4. Relationships
+
+```
+Company
+    │
+    ├── Subscription
+    │
+    ├── AI Settings
+    ├── API Keys
+    ├── Users
+    ├── Documents
+    ├── Tickets
+    ├── Audit Logs
+    └── Invoices
+```
+
+---
+
+# 5. Subscription Lifecycle
+
+```
+Free Trial
+
+↓
+
+Active
+
+↓
+
+Renewal
+
+↓
+
+Upgrade / Downgrade
+
+↓
+
+Expired
+
+↓
+
+Cancelled
+
+↓
+
+Archived
+```
+
+---
+
+# 6. Columns
+
+| Column | Type | Nullable | Default | Description |
+|---------|------|----------|----------|-------------|
+| subscription_id | BIGINT | No | Auto Increment | Primary Key |
+| company_id | BIGINT | No | — | Company |
+| subscription_uuid | CHAR(36) | No | UUID | Public identifier |
+| plan_code | VARCHAR(50) | No | FREE | Plan code |
+| plan_name | VARCHAR(100) | No | Free | Display name |
+| billing_cycle | ENUM | No | MONTHLY | Billing cycle |
+| subscription_status | ENUM | No | ACTIVE | Status |
+| subscription_type | ENUM | No | SELF_SERVICE | Type |
+| started_at | DATETIME | No | — | Start date |
+| ends_at | DATETIME | No | — | End date |
+| renewal_date | DATETIME | Yes | NULL | Renewal date |
+| cancelled_at | DATETIME | Yes | NULL | Cancellation date |
+| auto_renew | BOOLEAN | No | TRUE | Auto renewal |
+| currency | CHAR(3) | No | USD | ISO currency |
+| amount | DECIMAL(10,2) | No | 0.00 | Billing amount |
+| discount_amount | DECIMAL(10,2) | No | 0.00 | Discount |
+| tax_amount | DECIMAL(10,2) | No | 0.00 | Tax |
+| payment_provider | ENUM | Yes | NULL | Payment gateway |
+| external_subscription_id | VARCHAR(255) | Yes | NULL | Gateway subscription ID |
+| metadata | JSON | Yes | NULL | Additional configuration |
+| created_by | BIGINT | Yes | NULL | User |
+| created_at | TIMESTAMP | No | CURRENT_TIMESTAMP | Created |
+| updated_at | TIMESTAMP | No | CURRENT_TIMESTAMP | Updated |
+
+---
+
+# 7. Enumerations
+
+## billing_cycle
+
+```
+MONTHLY
+
+QUARTERLY
+
+YEARLY
+
+CUSTOM
+```
+
+---
+
+## subscription_status
+
+```
+TRIAL
+
+ACTIVE
+
+PAST_DUE
+
+SUSPENDED
+
+CANCELLED
+
+EXPIRED
+
+TERMINATED
+```
+
+---
+
+## subscription_type
+
+```
+SELF_SERVICE
+
+ENTERPRISE
+
+PARTNER
+
+MANUAL
+```
+
+---
+
+## payment_provider
+
+```
+STRIPE
+
+PAYPAL
+
+PADDLE
+
+BRAINTREE
+
+MANUAL
+
+NONE
+```
+
+---
+
+# 8. Primary Key
+
+```
+subscription_id
+```
+
+---
+
+# 9. Foreign Keys
+
+## Company
+
+```
+company_id
+
+↓
+
+companies.company_id
+```
+
+Delete Rule
+
+```
+RESTRICT
+```
+
+---
+
+## Created By
+
+```
+created_by
+
+↓
+
+users.user_id
+```
+
+Delete Rule
+
+```
+SET NULL
+```
+
+---
+
+# 10. Unique Constraints
+
+```
+subscription_uuid
+```
+
+Business Rule
+
+Only one ACTIVE subscription per company.
+
+This should be enforced at the application layer or with a partial unique index (if supported).
+
+---
+
+# 11. Indexes
+
+Primary
+
+```
+subscription_id
+```
+
+Unique
+
+```
+subscription_uuid
+```
+
+Indexes
+
+```
+company_id
+
+plan_code
+
+subscription_status
+
+renewal_date
+
+ends_at
+
+created_at
+```
+
+Composite
+
+```
+(company_id, subscription_status)
+
+(company_id, renewal_date)
+
+(company_id, plan_code)
+
+(subscription_status, renewal_date)
+```
+
+---
+
+# 12. Validation Rules
+
+Amount
+
+Must be greater than or equal to zero.
+
+---
+
+Currency
+
+Must be a valid ISO-4217 code.
+
+Examples
+
+```
+USD
+
+EUR
+
+GBP
+
+PKR
+```
+
+---
+
+Billing Dates
+
+```
+started_at
+
+<
+
+ends_at
+```
+
+---
+
+Renewal Date
+
+Cannot be earlier than the subscription start date.
+
+---
+
+# 13. Subscription Workflow
+
+```
+Company Signup
+
+↓
+
+Create Trial
+
+↓
+
+Payment
+
+↓
+
+Activate Subscription
+
+↓
+
+Feature Access
+
+↓
+
+Renew
+
+↓
+
+Invoice
+
+↓
+
+Continue
+
+OR
+
+Expire
+```
+
+---
+
+# 14. CRUD Operations
+
+## Create
+
+Create subscription.
+
+---
+
+## Read
+
+Retrieve active subscription.
+
+Retrieve history.
+
+---
+
+## Update
+
+Allowed
+
+- Plan
+- Renewal
+- Auto Renew
+- Status
+- Metadata
+
+---
+
+## Delete
+
+Not supported.
+
+Archive only.
+
+---
+
+# 15. SQLAlchemy Model Example
+
+```python
+class Subscription(Base):
+
+    __tablename__ = "subscriptions"
+
+    subscription_id = mapped_column(
+        BigInteger,
+        primary_key=True
+    )
+
+    company_id = mapped_column(
+        ForeignKey("companies.company_id"),
+        nullable=False
+    )
+
+    subscription_uuid = mapped_column(
+        String(36),
+        unique=True
+    )
+
+    created_by = mapped_column(
+        ForeignKey("users.user_id")
+    )
+```
+
+---
+
+# 16. Repository Responsibilities
+
+SubscriptionRepository
+
+- Create subscription
+- Get active subscription
+- Get subscription history
+- Renew subscription
+- Cancel subscription
+- Upgrade subscription
+- Downgrade subscription
+- Expire subscriptions
+- Search subscriptions
+
+---
+
+# 17. Service Responsibilities
+
+SubscriptionService
+
+- Validate plans
+- Activate subscriptions
+- Apply feature limits
+- Handle renewals
+- Handle upgrades
+- Handle downgrades
+- Handle cancellations
+- Trigger invoices
+- Generate audit events
+- Notify customers
+
+---
+
+# 18. Related API Endpoints
+
+```
+GET    /api/v1/subscriptions
+
+GET    /api/v1/subscriptions/current
+
+GET    /api/v1/subscriptions/history
+
+POST   /api/v1/subscriptions
+
+PATCH  /api/v1/subscriptions/{id}
+
+PATCH  /api/v1/subscriptions/{id}/upgrade
+
+PATCH  /api/v1/subscriptions/{id}/downgrade
+
+PATCH  /api/v1/subscriptions/{id}/cancel
+```
+
+---
+
+# 19. Sample Record
+
+```json
+{
+  "subscription_id": 51,
+  "company_id": 1,
+  "plan_code": "PRO",
+  "plan_name": "Professional",
+  "billing_cycle": "MONTHLY",
+  "subscription_status": "ACTIVE",
+  "amount": 79.00,
+  "currency": "USD",
+  "auto_renew": true,
+  "renewal_date": "2026-09-01T00:00:00Z"
+}
+```
+
+---
+
+# 20. Feature Access Flow
+
+```
+User Login
+
+↓
+
+Load Company
+
+↓
+
+Load Active Subscription
+
+↓
+
+Determine Limits
+
+↓
+
+Authorize Feature
+
+↓
+
+Continue Request
+```
+
+Examples of limits:
+
+- Maximum users
+- Maximum documents
+- Maximum API requests
+- AI model availability
+- Monthly AI tokens
+- Storage quota
+- Ticket retention period
+
+---
+
+# 21. Security Considerations
+
+- Only administrators may manage subscriptions.
+- Validate payment provider webhooks.
+- Audit all billing changes.
+- Never trust client-side billing data.
+- Encrypt external billing identifiers if required.
+- Restrict billing APIs using RBAC.
+
+---
+
+# 22. Performance Considerations
+
+- Cache active subscriptions.
+- Cache feature entitlements.
+- Schedule renewal jobs.
+- Process billing asynchronously.
+- Archive historical subscriptions.
+- Avoid frequent entitlement queries.
+
+---
+
+# 23. Future Enhancements
+
+- Subscription plans table
+- Coupons
+- Promotional codes
+- Usage-based billing
+- Seat-based pricing
+- AI token billing
+- Multi-currency pricing
+- Family accounts
+- Regional pricing
+- Billing analytics
+- Self-service invoice downloads
+
+---
+
+# 24. Cursor AI Instructions
+
+When generating code for `subscriptions`:
+
+1. Never physically delete subscriptions.
+2. Support only one active subscription per company.
+3. Cache subscription entitlements.
+4. Validate billing dates.
+5. Trigger audit logs on every change.
+6. Handle upgrades and downgrades safely.
+7. Enforce feature limits centrally.
+8. Keep ORM models, migrations, repositories, services, and documentation synchronized.
+
+---
+
+# 25. Definition of Done
+
+The `subscriptions` implementation is complete when:
+
+- Migration created
+- SQLAlchemy model implemented
+- Repository implemented
+- Service implemented
+- Renewal scheduler implemented
+- Upgrade workflow implemented
+- Downgrade workflow implemented
+- Cancellation workflow implemented
+- Entitlement engine implemented
+- Audit logging implemented
+- Unit tests passing
+- Integration tests passing
+- Documentation updated
+
+---
+
+# 26. Recommended Plans
+
+| Plan | Intended Customer |
+|------|-------------------|
+| Free | Evaluation and testing |
+| Starter | Small businesses |
+| Professional | Growing companies |
+| Business | Medium organizations |
+| Enterprise | Large organizations |
+
+---
+
+# 27. Architecture Notes
+
+Recommended architecture
+
+```
+Company
+
+↓
+
+Subscription Service
+
+↓
+
+Entitlement Engine
+
+↓
+
+Feature Gates
+
+↓
+
+Application Modules
+
+↓
+
+Usage Tracking
+
+↓
+
+Billing
+
+↓
+
+Renewal Jobs
+```
+
+The **subscriptions** table is the central authority for billing, feature availability, quotas, and licensing across the AI Customer Support Platform. It should integrate closely with authentication, authorization, AI settings, usage tracking, payment processing, and analytics while remaining flexible enough to support future pricing models and enterprise agreements.
+
+---
+
+# End of Document

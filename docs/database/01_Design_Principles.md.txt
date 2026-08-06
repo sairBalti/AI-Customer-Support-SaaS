@@ -1,0 +1,800 @@
+# Database Documentation
+# 01_Design_Principles.md
+
+# AI Customer Support Agent Platform
+## Database Design Principles
+
+**Version:** 1.0
+
+**Status:** Approved
+
+**Database:** MySQL 8+
+
+**ORM:** SQLAlchemy 2.x
+
+**Migration Tool:** Alembic
+
+**Related Documents**
+
+- 00_Overview.md
+- 02_ERD.md
+- 03_Tables/*
+- 04_Indexes.md
+- 05_Migrations.md
+
+---
+
+# 1. Purpose
+
+This document defines the database design standards, conventions, and principles that every database object in the system must follow.
+
+These principles ensure that the database remains:
+
+- Maintainable
+- Scalable
+- Secure
+- Performant
+- Consistent
+- Easy to understand
+- Easy to migrate
+- AI-friendly for Cursor-generated code
+
+Every new table, column, index, migration, and relationship must comply with this document.
+
+---
+
+# 2. Core Design Principles
+
+The database is designed according to the following principles.
+
+## Principle 1 — Data Integrity First
+
+The database is the ultimate source of truth.
+
+Application validation alone is **not sufficient**.
+
+The database must enforce:
+
+- Primary Keys
+- Foreign Keys
+- Unique Constraints
+- NOT NULL Constraints
+- Default Values
+- Check Constraints (where supported)
+
+Never rely solely on frontend validation.
+
+---
+
+## Principle 2 — Normalize Data
+
+The schema shall follow **Third Normal Form (3NF)** by default.
+
+Benefits:
+
+- Eliminates duplicate data
+- Reduces update anomalies
+- Improves consistency
+
+Example:
+
+❌ Bad
+
+```
+users
+
+company_name
+company_email
+company_phone
+```
+
+✅ Good
+
+```
+companies
+
+company_name
+company_email
+
+users
+
+company_id
+```
+
+---
+
+## Principle 3 — Denormalize Only When Necessary
+
+Denormalization is permitted only when:
+
+- Query performance requires it
+- Analytics require precomputed values
+- Large reporting queries become expensive
+
+Every denormalization decision must be documented in an ADR (Architecture Decision Record).
+
+---
+
+## Principle 4 — Multi-Tenant by Design
+
+Every business entity belongs to exactly one company.
+
+Every table containing business data must include:
+
+```
+company_id
+```
+
+Examples:
+
+- users
+- documents
+- tickets
+- chat_sessions
+- chat_messages
+- audit_logs
+- ai_settings
+
+Exceptions:
+
+- roles
+- permissions
+- countries
+- system_settings
+
+These are global lookup tables.
+
+---
+
+## Principle 5 — Referential Integrity
+
+Every relationship shall use foreign keys unless there is a documented technical reason not to.
+
+Example
+
+```
+tickets.company_id
+↓
+
+companies.company_id
+```
+
+Deleting parent records should never leave orphaned child records.
+
+---
+
+# 3. Naming Conventions
+
+## Tables
+
+Rules
+
+- lowercase
+- plural
+- snake_case
+
+Examples
+
+```
+users
+companies
+tickets
+chat_messages
+```
+
+Avoid
+
+```
+User
+tblUsers
+userTable
+```
+
+---
+
+## Columns
+
+Rules
+
+- snake_case
+- descriptive
+- no abbreviations
+
+Good
+
+```
+created_at
+
+updated_at
+
+company_id
+
+first_name
+```
+
+Bad
+
+```
+crt
+
+dt
+
+cmp
+
+fn
+```
+
+---
+
+## Primary Keys
+
+Every table uses
+
+```
+table_name_id
+```
+
+Examples
+
+```
+user_id
+
+company_id
+
+ticket_id
+
+document_id
+```
+
+Never use generic names such as:
+
+```
+id
+```
+
+---
+
+## Foreign Keys
+
+Always match parent key name.
+
+Example
+
+```
+users.company_id
+
+companies.company_id
+```
+
+Never
+
+```
+company
+
+companyRef
+
+cmp_id
+```
+
+---
+
+## Boolean Columns
+
+Use readable names.
+
+Examples
+
+```
+is_active
+
+is_deleted
+
+is_verified
+
+is_locked
+```
+
+---
+
+## Date Columns
+
+Use explicit names.
+
+```
+created_at
+
+updated_at
+
+deleted_at
+
+last_login_at
+
+resolved_at
+```
+
+---
+
+# 4. Data Type Standards
+
+## Integer IDs
+
+Use
+
+```
+BIGINT
+```
+
+For:
+
+- Chats
+- Messages
+- Audit Logs
+
+Use
+
+```
+INT
+```
+
+For lookup tables.
+
+---
+
+## Strings
+
+Short values
+
+```
+VARCHAR
+```
+
+Examples
+
+```
+email
+
+name
+
+phone
+```
+
+Large values
+
+```
+TEXT
+```
+
+or
+
+```
+LONGTEXT
+```
+
+Examples
+
+- prompts
+- chat messages
+- extracted document text
+
+---
+
+## JSON
+
+Use JSON only for flexible metadata.
+
+Examples
+
+```
+sources
+
+model_response
+
+settings
+```
+
+Avoid storing relational data inside JSON.
+
+---
+
+## ENUM
+
+Allowed only for stable values.
+
+Examples
+
+```
+ticket_status
+
+priority
+
+user_status
+```
+
+Avoid ENUM for rapidly changing business values.
+
+---
+
+# 5. Primary Key Strategy
+
+Every table uses an auto-generated surrogate key.
+
+Example
+
+```
+company_id
+
+AUTO_INCREMENT
+```
+
+Reasons
+
+- Stable
+- Fast joins
+- Easy indexing
+
+Natural keys should never be used as primary keys.
+
+---
+
+# 6. Foreign Key Strategy
+
+Every foreign key must:
+
+- reference parent PK
+- be indexed
+- use matching data types
+
+Example
+
+```
+users.company_id
+
+↓
+
+companies.company_id
+```
+
+---
+
+# 7. Timestamp Strategy
+
+Every business table includes
+
+```
+created_at
+
+updated_at
+```
+
+Optional
+
+```
+deleted_at
+
+created_by
+
+updated_by
+```
+
+---
+
+# 8. Soft Delete Policy
+
+Business records are never permanently deleted.
+
+Instead
+
+```
+deleted_at
+```
+
+is populated.
+
+Benefits
+
+- Recovery
+- Auditing
+- Compliance
+- Debugging
+
+Physical deletion is reserved for:
+
+- temporary data
+- cache
+- expired tokens
+- staging records
+
+---
+
+# 9. Audit Policy
+
+Every critical operation must be auditable.
+
+Audit examples
+
+- Login
+- Logout
+- User Created
+- User Deleted
+- Document Uploaded
+- AI Settings Changed
+- Ticket Assigned
+- Role Updated
+
+Each audit record contains:
+
+- company_id
+- user_id
+- action
+- entity
+- entity_id
+- timestamp
+- IP address (optional)
+- user_agent (optional)
+
+---
+
+# 10. Indexing Principles
+
+Indexes shall exist for:
+
+Primary Keys
+
+Foreign Keys
+
+Unique Columns
+
+Frequently Filtered Columns
+
+Examples
+
+```
+email
+
+company_id
+
+status
+
+created_at
+```
+
+Composite indexes should reflect actual query patterns.
+
+Example
+
+```
+(company_id, status)
+
+(company_id, created_at)
+
+(ticket_id, created_at)
+```
+
+Do not create unnecessary indexes.
+
+---
+
+# 11. Query Design Principles
+
+Never
+
+```
+SELECT *
+```
+
+Always request only required columns.
+
+Always paginate list endpoints.
+
+Always filter by company_id.
+
+Avoid expensive joins when cached data is sufficient.
+
+Avoid N+1 queries.
+
+---
+
+# 12. Transaction Design
+
+Use transactions whenever multiple operations must succeed together.
+
+Examples
+
+Company Registration
+
+```
+Create Company
+
+↓
+
+Create Admin User
+
+↓
+
+Create Settings
+
+↓
+
+Commit
+```
+
+Document Upload
+
+```
+Insert Document
+
+↓
+
+Store File
+
+↓
+
+Queue Embedding
+
+↓
+
+Commit
+```
+
+If any step fails
+
+Rollback.
+
+---
+
+# 13. Migration Principles
+
+Every schema modification requires an Alembic migration.
+
+Rules
+
+- One logical change per migration.
+- Migrations must be reversible.
+- Never edit an existing migration after deployment.
+- Production databases are updated only through migrations.
+
+---
+
+# 14. Performance Principles
+
+Design for:
+
+- Fast reads
+- Acceptable writes
+- Horizontal scaling
+
+Rules
+
+- Index foreign keys
+- Avoid unnecessary joins
+- Use pagination
+- Batch writes where possible
+- Use background workers for heavy processing
+
+---
+
+# 15. Security Principles
+
+Passwords
+
+- Argon2 (preferred)
+- bcrypt (acceptable)
+
+Secrets
+
+Never store API keys in plain text.
+
+Encrypt sensitive configuration.
+
+Database connections must use TLS.
+
+Grant the minimum required database privileges.
+
+---
+
+# 16. AI-Specific Principles
+
+Embeddings **must not** be stored in MySQL.
+
+Store only:
+
+```
+embedding_id
+
+document_id
+
+company_id
+
+metadata
+```
+
+Actual vectors remain in:
+
+- ChromaDB
+- Pinecone
+
+Prompt history should be stored separately from vector data.
+
+Conversation history should remain in MySQL for auditing and analytics.
+
+---
+
+# 17. Backup Principles
+
+Daily full backups.
+
+Hourly incremental backups.
+
+Encrypted backup storage.
+
+Quarterly restore testing.
+
+Retention Policy
+
+- Daily: 30 days
+- Weekly: 12 weeks
+- Monthly: 12 months
+
+---
+
+# 18. Documentation Standards
+
+Every table document must include:
+
+1. Purpose
+2. Business Rules
+3. Relationships
+4. Column Definitions
+5. Constraints
+6. Indexes
+7. Sample Records
+8. CRUD Operations
+9. Validation Rules
+10. Repository Mapping
+11. API Usage
+12. Future Enhancements
+
+No table should be implemented without corresponding documentation.
+
+---
+
+# 19. Definition of Done
+
+A database change is complete when:
+
+- Schema follows naming conventions.
+- Constraints are implemented.
+- Foreign keys are enforced.
+- Required indexes exist.
+- Migration is written.
+- Rollback is tested.
+- Documentation is updated.
+- Repository and ORM models are aligned.
+- Unit and integration tests pass.
+
+---
+
+# 20. Cursor AI Database Rules
+
+When generating database-related code, Cursor must:
+
+1. Read this document before creating tables or models.
+2. Follow naming conventions exactly.
+3. Always include `company_id` for tenant-specific entities.
+4. Add `created_at` and `updated_at` to business tables.
+5. Define foreign keys and indexes together.
+6. Prefer normalized designs unless a documented exception exists.
+7. Never store embedding vectors in MySQL.
+8. Generate Alembic migrations for every schema change.
+9. Update the relevant table documentation after modifying the schema.
+10. Ensure ORM models, migrations, and documentation remain synchronized.
+
+---
+
+# Conclusion
+
+These principles establish the foundation for a secure, scalable, and maintainable relational database. By consistently applying these standards, the platform can evolve without compromising data integrity, performance, or developer productivity.
+
+---
+
+**End of Document**

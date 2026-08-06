@@ -1,0 +1,834 @@
+# Database Documentation
+# 03_Tables/feature_flags.md
+
+# Table Specification: feature_flags
+
+**Database:** ai_customer_support
+
+**Schema:** public
+
+**Table Name:** feature_flags
+
+**Module:** Feature Management
+
+**Owner:** Platform Engineering Team
+
+**Status:** Approved
+
+**Version:** 1.0
+
+**Classification:** Platform Configuration
+
+---
+
+# Related Documents
+
+- 00_Overview.md
+- 01_Design_Principles.md
+- 02_ERD.md
+- companies.md
+- subscriptions.md
+- system_settings.md
+- users.md
+- roles.md
+- permissions.md
+- audit_logs.md
+- feature_flag_targets.md *(Future)*
+
+---
+
+# 1. Purpose
+
+The **feature_flags** table provides a centralized mechanism for enabling, disabling, testing, and gradually rolling out application features without deploying new application code.
+
+Feature flags allow the engineering team to safely introduce new functionality while minimizing production risk.
+
+Typical use cases include:
+
+- Gradual feature rollout
+- Beta testing
+- Internal-only features
+- A/B testing
+- Emergency feature disable
+- Subscription-based features
+- Country-specific features
+- Enterprise-only functionality
+
+Instead of deploying code to enable a feature, administrators simply change configuration.
+
+---
+
+# 2. Business Responsibilities
+
+The feature_flags table is responsible for
+
+- Runtime feature management
+- Controlled feature rollout
+- Feature visibility
+- Beta releases
+- Enterprise feature gating
+- Experiment management
+- Emergency kill switches
+- Feature auditing
+
+---
+
+# 3. Business Rules
+
+### Rule 1
+
+Every feature must have a unique key.
+
+---
+
+### Rule 2
+
+Features may be enabled globally.
+
+---
+
+### Rule 3
+
+Features may be enabled for specific subscription plans.
+
+---
+
+### Rule 4
+
+Features may be enabled for individual companies.
+
+---
+
+### Rule 5
+
+Only Super Administrators may create or modify feature flags.
+
+---
+
+### Rule 6
+
+Every feature modification creates an Audit Log.
+
+---
+
+### Rule 7
+
+Disabled features must be inaccessible through APIs.
+
+---
+
+### Rule 8
+
+Expired feature flags are automatically ignored.
+
+---
+
+# 4. Relationships
+
+```
+Platform
+
+│
+
+├── Feature Flags
+
+│
+
+├── Companies
+
+├── Subscriptions
+
+├── Users
+
+├── Audit Logs
+
+└── System Settings
+```
+
+---
+
+# 5. Feature Lifecycle
+
+```
+Create Feature
+
+↓
+
+Disabled
+
+↓
+
+Internal Testing
+
+↓
+
+Beta Companies
+
+↓
+
+Percentage Rollout
+
+↓
+
+Production
+
+↓
+
+Deprecated
+
+↓
+
+Archived
+```
+
+---
+
+# 6. Columns
+
+| Column | Type | Nullable | Default | Description |
+|----------|------|----------|----------|-------------|
+| feature_flag_id | BIGINT | No | Auto Increment | Primary Key |
+| feature_uuid | CHAR(36) | No | UUID | Public identifier |
+| feature_key | VARCHAR(150) | No | — | Unique feature identifier |
+| feature_name | VARCHAR(200) | No | — | Display name |
+| description | TEXT | Yes | NULL | Feature description |
+| category | ENUM | No | GENERAL | Feature category |
+| rollout_type | ENUM | No | GLOBAL | Rollout strategy |
+| is_enabled | BOOLEAN | No | FALSE | Feature state |
+| rollout_percentage | DECIMAL(5,2) | No | 100.00 | Percentage rollout |
+| minimum_plan | ENUM | Yes | NULL | Minimum subscription plan |
+| starts_at | DATETIME | Yes | NULL | Activation date |
+| expires_at | DATETIME | Yes | NULL | Expiration date |
+| metadata | JSON | Yes | NULL | Additional settings |
+| created_by | BIGINT | No | — | User |
+| updated_by | BIGINT | No | — | User |
+| created_at | TIMESTAMP | No | CURRENT_TIMESTAMP | Created |
+| updated_at | TIMESTAMP | No | CURRENT_TIMESTAMP | Updated |
+
+---
+
+# 7. Enumerations
+
+## category
+
+```
+GENERAL
+
+AI
+
+SECURITY
+
+BILLING
+
+ANALYTICS
+
+ADMIN
+
+CHAT
+
+SUPPORT
+
+DOCUMENTS
+
+API
+```
+
+---
+
+## rollout_type
+
+```
+GLOBAL
+
+PERCENTAGE
+
+COMPANY
+
+SUBSCRIPTION
+
+COUNTRY
+
+USER
+
+INTERNAL
+```
+
+---
+
+## minimum_plan
+
+```
+FREE
+
+STARTER
+
+PROFESSIONAL
+
+BUSINESS
+
+ENTERPRISE
+```
+
+---
+
+# 8. Primary Key
+
+```
+feature_flag_id
+```
+
+---
+
+# 9. Foreign Keys
+
+## Created By
+
+```
+created_by
+
+↓
+
+users.user_id
+```
+
+Delete Rule
+
+```
+RESTRICT
+```
+
+---
+
+## Updated By
+
+```
+updated_by
+
+↓
+
+users.user_id
+```
+
+Delete Rule
+
+```
+RESTRICT
+```
+
+---
+
+# 10. Unique Constraints
+
+```
+feature_uuid
+```
+
+```
+feature_key
+```
+
+Examples
+
+```
+AI_STREAMING
+
+MULTI_LANGUAGE
+
+VOICE_SUPPORT
+
+TEAM_INBOX
+
+CUSTOM_BRANDING
+```
+
+---
+
+# 11. Indexes
+
+Primary
+
+```
+feature_flag_id
+```
+
+Unique
+
+```
+feature_uuid
+
+feature_key
+```
+
+Indexes
+
+```
+category
+
+is_enabled
+
+minimum_plan
+
+rollout_type
+
+starts_at
+
+expires_at
+
+updated_at
+```
+
+Composite
+
+```
+(is_enabled, category)
+
+(category, minimum_plan)
+
+(rollout_type, is_enabled)
+```
+
+---
+
+# 12. Validation Rules
+
+Feature Key
+
+- Required
+- Uppercase
+- Snake Case
+- Unique
+
+Example
+
+```
+AI_STREAMING
+```
+
+---
+
+Rollout Percentage
+
+```
+0.00
+
+↓
+
+100.00
+```
+
+---
+
+Activation Dates
+
+```
+starts_at
+
+<
+
+expires_at
+```
+
+---
+
+# 13. Feature Evaluation Flow
+
+```
+API Request
+
+↓
+
+Authentication
+
+↓
+
+Load Cached Feature Flags
+
+↓
+
+Evaluate Rules
+
+↓
+
+Subscription Check
+
+↓
+
+Company Check
+
+↓
+
+Feature Enabled?
+
+↓
+
+Continue
+
+OR
+
+Reject Request
+```
+
+---
+
+# 14. CRUD Operations
+
+## Create
+
+Create feature.
+
+---
+
+## Read
+
+Retrieve feature flags.
+
+---
+
+## Update
+
+Update rollout.
+
+Enable.
+
+Disable.
+
+Archive.
+
+---
+
+## Delete
+
+Not supported.
+
+Archive only.
+
+---
+
+# 15. SQLAlchemy Model Example
+
+```python
+class FeatureFlag(Base):
+
+    __tablename__ = "feature_flags"
+
+    feature_flag_id = mapped_column(
+        BigInteger,
+        primary_key=True
+    )
+
+    feature_uuid = mapped_column(
+        String(36),
+        unique=True
+    )
+
+    feature_key = mapped_column(
+        String(150),
+        unique=True
+    )
+```
+
+---
+
+# 16. Repository Responsibilities
+
+FeatureFlagRepository
+
+- Create feature
+- Get feature
+- Get by key
+- Enable feature
+- Disable feature
+- List active features
+- Update rollout
+- Archive feature
+
+---
+
+# 17. Service Responsibilities
+
+FeatureFlagService
+
+- Evaluate features
+- Cache feature flags
+- Refresh cache
+- Validate rollout
+- Validate subscription
+- Validate company targeting
+- Generate audit events
+
+---
+
+# 18. Related API Endpoints
+
+```
+GET    /api/v1/features
+
+GET    /api/v1/features/{id}
+
+POST   /api/v1/features
+
+PATCH  /api/v1/features/{id}
+
+PATCH  /api/v1/features/{id}/enable
+
+PATCH  /api/v1/features/{id}/disable
+
+GET    /api/v1/features/evaluate
+```
+
+---
+
+# 19. Sample Record
+
+```json
+{
+  "feature_key": "AI_STREAMING",
+  "feature_name": "Streaming AI Responses",
+  "category": "AI",
+  "rollout_type": "GLOBAL",
+  "is_enabled": true,
+  "minimum_plan": "PROFESSIONAL",
+  "rollout_percentage": 100.0
+}
+```
+
+---
+
+# 20. Rollout Strategies
+
+## Global
+
+```
+Everyone
+```
+
+---
+
+## Percentage
+
+```
+Random Users
+
+↓
+
+10%
+
+↓
+
+25%
+
+↓
+
+50%
+
+↓
+
+100%
+```
+
+---
+
+## Company
+
+```
+Selected Companies Only
+```
+
+---
+
+## Subscription
+
+```
+Enterprise Only
+
+Professional+
+
+Business+
+
+etc.
+```
+
+---
+
+# 21. Security Considerations
+
+- Only Super Administrators can modify feature flags.
+- Cache feature evaluations.
+- Audit every change.
+- Prevent unauthorized feature activation.
+- Validate rollout rules.
+- Restrict internal features.
+
+---
+
+# 22. Performance Considerations
+
+- Cache all feature flags.
+- Avoid database lookup on every request.
+- Refresh cache only after changes.
+- Use Redis for distributed deployments.
+- Evaluate features in memory.
+
+---
+
+# 23. Future Enhancements
+
+- Feature dependencies
+- Scheduled rollout
+- Canary deployment
+- A/B testing
+- User segmentation
+- Geographic rollout
+- Department rollout
+- AI-powered rollout recommendations
+- Feature analytics
+- Automatic rollback
+
+---
+
+# 24. Cursor AI Instructions
+
+When generating code for `feature_flags`:
+
+1. Cache feature flags.
+2. Never hardcode feature availability.
+3. Support percentage rollout.
+4. Support subscription gating.
+5. Support company targeting.
+6. Audit every modification.
+7. Evaluate features through middleware.
+8. Keep ORM models, migrations, repositories, services, and documentation synchronized.
+
+---
+
+# 25. Definition of Done
+
+The `feature_flags` implementation is complete when:
+
+- Migration created
+- SQLAlchemy model implemented
+- Repository implemented
+- Service implemented
+- Feature evaluation middleware implemented
+- Cache implemented
+- Percentage rollout implemented
+- Subscription gating implemented
+- Company targeting implemented
+- Audit logging implemented
+- Unit tests passing
+- Integration tests passing
+- Documentation updated
+
+---
+
+# 26. Recommended Feature Flags
+
+| Feature Key | Description |
+|-------------|-------------|
+| AI_STREAMING | Stream AI responses |
+| AI_CITATIONS | Display document citations |
+| HUMAN_ESCALATION | Automatic escalation |
+| CHAT_FEEDBACK | User feedback on responses |
+| MULTI_LANGUAGE | Multi-language AI |
+| VOICE_SUPPORT | Voice conversations |
+| API_ACCESS | Public API access |
+| CUSTOM_BRANDING | Company branding |
+| ADVANCED_ANALYTICS | Advanced dashboards |
+| BETA_AI_MODELS | Experimental AI models |
+
+---
+
+# 27. Architecture Notes
+
+Recommended architecture
+
+```
+Application Startup
+
+↓
+
+Feature Cache
+
+↓
+
+Feature Evaluation Middleware
+
+↓
+
+Authentication
+
+↓
+
+Subscription Validation
+
+↓
+
+Company Target Validation
+
+↓
+
+Business Logic
+
+↓
+
+Response
+```
+
+The **feature_flags** table enables safe, dynamic, and scalable feature management across the platform. It provides a centralized mechanism for controlling application behavior at runtime, allowing engineering teams to release, test, and retire functionality with minimal operational risk while supporting subscription-based licensing, staged rollouts, and enterprise customization.
+
+---
+
+# End of Document
+
+**Database Documentation Completed**
+
+### Core Tables Completed
+
+- ✅ companies
+- ✅ users
+- ✅ roles
+- ✅ permissions
+- ✅ role_permissions
+- ✅ documents
+- ✅ knowledge_chunks
+- ✅ chat_sessions
+- ✅ chat_messages
+- ✅ tickets
+- ✅ ticket_messages
+- ✅ ticket_attachments
+- ✅ notifications
+- ✅ audit_logs
+- ✅ api_keys
+- ✅ ai_settings
+- ✅ subscriptions
+- ✅ usage_metrics
+- ✅ system_settings
+- ✅ feature_flags
+
+---
+
+### Next Recommended Documentation (Volume 2)
+
+The database schema is now complete. The next set of architecture documents should describe implementation rather than schema:
+
+```
+04_Indexes.md
+05_Foreign_Keys.md
+06_Stored_Procedures.md
+07_Views.md
+08_Triggers.md
+09_Partitioning.md
+10_Backup_Recovery.md
+11_Data_Retention.md
+12_Migration_Strategy.md
+13_Seed_Data.md
+14_Performance_Guide.md
+15_Security_Model.md
+16_Query_Standards.md
+17_Naming_Conventions.md
+18_ORM_Mapping.md
+19_Database_Checklist.md
+20_Database_Roadmap.md
+```
+
+These documents together form a production-grade database architecture package suitable for enterprise development.

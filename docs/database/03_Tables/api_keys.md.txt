@@ -1,0 +1,807 @@
+# Database Documentation
+# 03_Tables/api_keys.md
+
+# Table Specification: api_keys
+
+**Database:** ai_customer_support
+
+**Schema:** public
+
+**Table Name:** api_keys
+
+**Module:** API Management
+
+**Owner:** Platform Security Team
+
+**Status:** Approved
+
+**Version:** 1.0
+
+**Classification:** Security Critical
+
+---
+
+# Related Documents
+
+- 00_Overview.md
+- 01_Design_Principles.md
+- 02_ERD.md
+- companies.md
+- users.md
+- audit_logs.md
+- ai_settings.md
+- security.md
+- authentication.md *(Future)*
+- rate_limits.md *(Future)*
+
+---
+
+# 1. Purpose
+
+The **api_keys** table stores API credentials used to authenticate requests to the AI Customer Support Platform.
+
+API Keys allow external applications to securely interact with the platform without requiring interactive user login.
+
+Typical consumers include:
+
+- Mobile Applications
+- Company Websites
+- Customer Portals
+- CRM Systems
+- ERP Systems
+- Internal Microservices
+- Third-party Integrations
+- Automation Platforms
+
+The platform never stores plaintext API keys.
+
+Only securely hashed versions are stored.
+
+---
+
+# 2. Business Responsibilities
+
+The api_keys table is responsible for
+
+- API authentication
+- Key lifecycle management
+- Key rotation
+- Expiration
+- Permission scopes
+- Rate limiting
+- Usage statistics
+- Security auditing
+
+---
+
+# 3. Business Rules
+
+### Rule 1
+
+Every API key belongs to exactly one company.
+
+---
+
+### Rule 2
+
+Every API key is created by one user.
+
+---
+
+### Rule 3
+
+Only the hashed value is stored.
+
+Plaintext keys are displayed once during creation.
+
+---
+
+### Rule 4
+
+Keys can be revoked but never modified.
+
+Rotation creates a new key.
+
+---
+
+### Rule 5
+
+Expired keys cannot authenticate.
+
+---
+
+### Rule 6
+
+Inactive keys cannot authenticate.
+
+---
+
+### Rule 7
+
+Every API request updates usage statistics asynchronously.
+
+---
+
+### Rule 8
+
+Every API key must have permission scopes.
+
+---
+
+### Rule 9
+
+API Keys are independent of user passwords.
+
+---
+
+# 4. Relationships
+
+```
+Company
+    │
+    ├── Users
+    │
+    ├── API Keys
+    │
+    ├── Audit Logs
+    │
+    └── Rate Limits
+```
+
+---
+
+# 5. Key Lifecycle
+
+```
+Generate Key
+
+↓
+
+Display Plaintext Once
+
+↓
+
+Hash Key
+
+↓
+
+Store Hash
+
+↓
+
+API Authentication
+
+↓
+
+Usage Tracking
+
+↓
+
+Rotation
+
+↓
+
+Revocation
+
+↓
+
+Archive
+```
+
+---
+
+# 6. Columns
+
+| Column | Type | Nullable | Default | Description |
+|----------|------|----------|----------|-------------|
+| api_key_id | BIGINT | No | Auto Increment | Primary Key |
+| company_id | BIGINT | No | — | Company |
+| created_by | BIGINT | No | — | User |
+| api_key_uuid | CHAR(36) | No | UUID | Public identifier |
+| name | VARCHAR(150) | No | — | Friendly key name |
+| key_prefix | VARCHAR(20) | No | — | Visible prefix |
+| key_hash | CHAR(64) | No | — | SHA-256 hash |
+| scopes | JSON | No | — | Permission scopes |
+| environment | ENUM | No | PRODUCTION | Environment |
+| status | ENUM | No | ACTIVE | Status |
+| expires_at | DATETIME | Yes | NULL | Expiration |
+| last_used_at | DATETIME | Yes | NULL | Last usage |
+| last_used_ip | VARCHAR(45) | Yes | NULL | Last IP |
+| request_count | BIGINT | No | 0 | API usage count |
+| rate_limit_per_minute | INT | No | 60 | Requests per minute |
+| metadata | JSON | Yes | NULL | Additional metadata |
+| created_at | TIMESTAMP | No | CURRENT_TIMESTAMP | Created |
+| updated_at | TIMESTAMP | No | CURRENT_TIMESTAMP | Updated |
+| revoked_at | TIMESTAMP | Yes | NULL | Revocation time |
+
+---
+
+# 7. Enumerations
+
+## environment
+
+```
+DEVELOPMENT
+
+STAGING
+
+PRODUCTION
+```
+
+---
+
+## status
+
+```
+ACTIVE
+
+REVOKED
+
+EXPIRED
+
+DISABLED
+```
+
+---
+
+# 8. Permission Scopes
+
+Example
+
+```json
+[
+  "chat:read",
+  "chat:write",
+  "documents:read",
+  "documents:write",
+  "tickets:read"
+]
+```
+
+Supported Scope Categories
+
+```
+chat
+
+documents
+
+tickets
+
+users
+
+knowledge
+
+settings
+
+billing
+
+notifications
+
+analytics
+
+admin
+```
+
+Permission Types
+
+```
+read
+
+write
+
+update
+
+delete
+
+admin
+```
+
+Examples
+
+```
+chat:read
+
+chat:write
+
+tickets:update
+
+documents:delete
+```
+
+---
+
+# 9. Primary Key
+
+```
+api_key_id
+```
+
+---
+
+# 10. Foreign Keys
+
+## Company
+
+```
+company_id
+
+↓
+
+companies.company_id
+```
+
+Delete Rule
+
+```
+RESTRICT
+```
+
+---
+
+## Created By
+
+```
+created_by
+
+↓
+
+users.user_id
+```
+
+Delete Rule
+
+```
+RESTRICT
+```
+
+---
+
+# 11. Unique Constraints
+
+```
+api_key_uuid
+
+key_hash
+```
+
+---
+
+# 12. Indexes
+
+Primary
+
+```
+api_key_id
+```
+
+Unique
+
+```
+api_key_uuid
+
+key_hash
+```
+
+Indexes
+
+```
+company_id
+
+created_by
+
+status
+
+expires_at
+
+last_used_at
+
+created_at
+```
+
+Composite
+
+```
+(company_id, status)
+
+(company_id, created_by)
+
+(company_id, expires_at)
+
+(company_id, environment)
+```
+
+---
+
+# 13. Validation Rules
+
+Name
+
+- Required
+- Maximum 150 characters
+
+---
+
+Key Prefix
+
+Example
+
+```
+acs_live_4Hd93
+```
+
+Only the prefix is displayed.
+
+---
+
+Hash
+
+- SHA-256
+- Required
+- Never reversible
+
+---
+
+Expiration
+
+Must be greater than creation date.
+
+---
+
+Rate Limit
+
+Must be greater than zero.
+
+---
+
+# 14. API Authentication Flow
+
+```
+Incoming API Request
+
+↓
+
+Extract API Key
+
+↓
+
+Calculate SHA-256
+
+↓
+
+Lookup Hash
+
+↓
+
+Validate Status
+
+↓
+
+Validate Expiration
+
+↓
+
+Validate Scope
+
+↓
+
+Validate Rate Limit
+
+↓
+
+Authorize Request
+
+↓
+
+Record Usage
+```
+
+---
+
+# 15. CRUD Operations
+
+## Create
+
+Generate new API Key.
+
+---
+
+## Read
+
+Retrieve metadata.
+
+Never return plaintext.
+
+---
+
+## Update
+
+Allowed
+
+- Name
+- Scopes
+- Rate Limit
+- Metadata
+
+---
+
+## Delete
+
+Not supported.
+
+Revoke instead.
+
+---
+
+# 16. SQLAlchemy Model Example
+
+```python
+class ApiKey(Base):
+
+    __tablename__ = "api_keys"
+
+    api_key_id = mapped_column(
+        BigInteger,
+        primary_key=True
+    )
+
+    company_id = mapped_column(
+        ForeignKey("companies.company_id"),
+        nullable=False
+    )
+
+    created_by = mapped_column(
+        ForeignKey("users.user_id"),
+        nullable=False
+    )
+
+    api_key_uuid = mapped_column(
+        String(36),
+        unique=True
+    )
+
+    key_hash = mapped_column(
+        String(64),
+        unique=True
+    )
+```
+
+---
+
+# 17. Repository Responsibilities
+
+ApiKeyRepository
+
+- Create key
+- Get key
+- Get by hash
+- Get by UUID
+- Update usage
+- Revoke key
+- Rotate key
+- List company keys
+- Update rate limits
+
+---
+
+# 18. Service Responsibilities
+
+ApiKeyService
+
+- Generate secure keys
+- Hash keys
+- Validate scopes
+- Authenticate requests
+- Track usage
+- Rotate keys
+- Revoke keys
+- Enforce rate limits
+- Generate audit events
+
+---
+
+# 19. Related API Endpoints
+
+```
+POST   /api/v1/api-keys
+
+GET    /api/v1/api-keys
+
+GET    /api/v1/api-keys/{id}
+
+PATCH  /api/v1/api-keys/{id}
+
+PATCH  /api/v1/api-keys/{id}/rotate
+
+PATCH  /api/v1/api-keys/{id}/revoke
+
+DELETE /api/v1/api-keys/{id}
+```
+
+The DELETE endpoint performs a logical revoke rather than a physical delete.
+
+---
+
+# 20. Sample Record
+
+```json
+{
+  "api_key_id": 14,
+  "company_id": 2,
+  "created_by": 8,
+  "name": "Production Website",
+  "key_prefix": "acs_live_H72a",
+  "status": "ACTIVE",
+  "environment": "PRODUCTION",
+  "request_count": 28431,
+  "rate_limit_per_minute": 300,
+  "last_used_at": "2026-08-01T12:43:21Z"
+}
+```
+
+---
+
+# 21. API Key Format
+
+Example
+
+```
+acs_live_
+
+↓
+
+Random 48 bytes
+
+↓
+
+Base64URL
+
+↓
+
+SHA-256
+
+↓
+
+Store Hash
+```
+
+Visible Key Example
+
+```
+acs_live_UkT93Mhj82KsPq....
+```
+
+Stored Value
+
+```
+7B5A9A58A4C73E2A8...
+
+(SHA-256)
+```
+
+---
+
+# 22. Security Considerations
+
+- Never store plaintext keys.
+- Generate cryptographically secure random values.
+- Display plaintext only once.
+- Hash using SHA-256 or stronger.
+- Use HTTPS exclusively.
+- Support automatic key expiration.
+- Rotate keys periodically.
+- Record all key usage.
+- Record failed authentication attempts.
+- Support IP allowlists (future).
+- Support HMAC signatures (future).
+
+---
+
+# 23. Performance Considerations
+
+- Index key hashes.
+- Cache validated keys.
+- Update usage asynchronously.
+- Use Redis for rate limiting.
+- Batch analytics updates.
+- Avoid unnecessary database writes.
+
+---
+
+# 24. Future Enhancements
+
+- IP allowlists
+- CIDR restrictions
+- OAuth2 support
+- JWT client credentials
+- Key tagging
+- Temporary API keys
+- Scoped webhook keys
+- Secret manager integration
+- Hardware Security Module (HSM)
+- Automatic key rotation
+- Usage dashboards
+
+---
+
+# 25. Cursor AI Instructions
+
+When generating code for `api_keys`:
+
+1. Never store plaintext API keys.
+2. Display generated keys only once.
+3. Store SHA-256 hashes only.
+4. Validate scopes before authorization.
+5. Enforce rate limits.
+6. Record every authentication attempt.
+7. Support key rotation instead of modification.
+8. Keep ORM models, migrations, repositories, services, and documentation synchronized.
+
+---
+
+# 26. Definition of Done
+
+The `api_keys` implementation is complete when:
+
+- Migration created
+- SQLAlchemy model implemented
+- Secure key generator implemented
+- SHA-256 hashing implemented
+- Repository implemented
+- Authentication middleware implemented
+- Scope validation implemented
+- Rate limiting integrated
+- Rotation implemented
+- Revocation implemented
+- Audit logging implemented
+- Unit tests passing
+- Integration tests passing
+- Documentation updated
+
+---
+
+# 27. Architecture Notes
+
+Recommended architecture
+
+```
+Client
+
+↓
+
+API Gateway
+
+↓
+
+API Key Middleware
+
+↓
+
+SHA-256 Validation
+
+↓
+
+Scope Validation
+
+↓
+
+Rate Limiter
+
+↓
+
+Business API
+
+↓
+
+Usage Tracker
+
+↓
+
+Audit Log
+```
+
+The **api_keys** table is the foundation of secure machine-to-machine authentication. It should integrate with authentication middleware, authorization policies, audit logging, rate limiting, and monitoring while remaining provider-independent and compliant with modern API security best practices.
+
+---
+
+# End of Document
+

@@ -1,0 +1,783 @@
+# Database Documentation
+# 03_Tables/audit_logs.md
+
+# Table Specification: audit_logs
+
+**Database:** ai_customer_support
+
+**Schema:** public
+
+**Table Name:** audit_logs
+
+**Module:** Audit & Compliance
+
+**Owner:** Platform Security Team
+
+**Status:** Approved
+
+**Version:** 1.0
+
+**Related Documents**
+
+- 00_Overview.md
+- 01_Design_Principles.md
+- 02_ERD.md
+- users.md
+- companies.md
+- roles.md
+- permissions.md
+- chat_sessions.md
+- chat_messages.md
+- tickets.md
+- ticket_messages.md
+- ticket_attachments.md
+- notifications.md
+- documents.md
+- knowledge_chunks.md
+
+---
+
+# 1. Purpose
+
+The **audit_logs** table is the central source of truth for all critical system activities.
+
+Every important business action performed by:
+
+- Customers
+- Support Agents
+- Company Administrators
+- Super Administrators
+- AI Agents
+- Background Workers
+- System Services
+- APIs
+
+must be recorded in this table.
+
+The audit log is immutable and exists to support:
+
+- Security investigations
+- Compliance requirements
+- Legal evidence
+- Debugging
+- Incident response
+- User accountability
+- Change history
+- Operational analytics
+
+Unlike application logs, audit logs record **business events**, not technical events.
+
+---
+
+# 2. Business Responsibilities
+
+The audit_logs table is responsible for
+
+- User activity history
+- Security event tracking
+- Permission change history
+- AI decision tracking
+- Data modification history
+- Authentication events
+- Compliance reporting
+- Regulatory auditing
+
+---
+
+# 3. Business Rules
+
+### Rule 1
+
+Every audit record belongs to one company.
+
+---
+
+### Rule 2
+
+System-wide events may belong to the Platform Company (System Tenant).
+
+---
+
+### Rule 3
+
+Audit records are immutable.
+
+Updates are prohibited.
+
+---
+
+### Rule 4
+
+Audit records are never deleted.
+
+Retention policies archive old records.
+
+---
+
+### Rule 5
+
+Every write operation affecting business data should create an audit record.
+
+---
+
+### Rule 6
+
+Sensitive values must be masked before storage.
+
+Passwords, API keys, tokens, secrets, and full payment information must never be stored.
+
+---
+
+### Rule 7
+
+Every audit record must include who performed the action.
+
+---
+
+### Rule 8
+
+Background jobs and AI agents must also create audit records.
+
+---
+
+# 4. Relationships
+
+```
+Company
+    │
+    ├── Users
+    │
+    ├── Audit Logs
+    │
+    ├── Tickets
+    ├── Documents
+    ├── Chat Sessions
+    ├── Notifications
+    └── AI Services
+```
+
+---
+
+# 5. Audit Lifecycle
+
+```
+Business Action
+
+↓
+
+Authorization
+
+↓
+
+Execute Action
+
+↓
+
+Generate Audit Event
+
+↓
+
+Store Audit Record
+
+↓
+
+Analytics
+
+↓
+
+Retention Archive
+```
+
+---
+
+# 6. Columns
+
+| Column | Type | Nullable | Default | Description |
+|---------|------|----------|----------|-------------|
+| audit_log_id | BIGINT | No | Auto Increment | Primary Key |
+| company_id | BIGINT | No | — | Tenant |
+| user_id | BIGINT | Yes | NULL | User performing action |
+| audit_uuid | CHAR(36) | No | UUID | Public identifier |
+| actor_type | ENUM | No | USER | Actor type |
+| action | VARCHAR(100) | No | — | Action performed |
+| entity_type | VARCHAR(100) | No | — | Entity type |
+| entity_id | BIGINT | Yes | NULL | Entity ID |
+| entity_uuid | CHAR(36) | Yes | NULL | Entity UUID |
+| old_values | JSON | Yes | NULL | Previous values |
+| new_values | JSON | Yes | NULL | Updated values |
+| change_summary | TEXT | Yes | NULL | Human-readable summary |
+| ip_address | VARCHAR(45) | Yes | NULL | IPv4/IPv6 |
+| user_agent | TEXT | Yes | NULL | Browser or client |
+| request_id | CHAR(36) | Yes | NULL | Request correlation ID |
+| session_id | VARCHAR(255) | Yes | NULL | Authentication session |
+| status | ENUM | No | SUCCESS | Result |
+| failure_reason | VARCHAR(255) | Yes | NULL | Failure reason |
+| metadata | JSON | Yes | NULL | Additional metadata |
+| created_at | TIMESTAMP | No | CURRENT_TIMESTAMP | Event timestamp |
+
+---
+
+# 7. Enumerations
+
+## actor_type
+
+```
+USER
+
+ADMIN
+
+SUPER_ADMIN
+
+AI_AGENT
+
+SYSTEM
+
+BACKGROUND_JOB
+
+API
+```
+
+---
+
+## status
+
+```
+SUCCESS
+
+FAILED
+
+DENIED
+```
+
+---
+
+# 8. Common Actions
+
+Examples
+
+```
+LOGIN
+
+LOGOUT
+
+CREATE
+
+UPDATE
+
+DELETE
+
+UPLOAD
+
+DOWNLOAD
+
+ASSIGN_ROLE
+
+REMOVE_ROLE
+
+CREATE_TICKET
+
+UPDATE_TICKET
+
+CLOSE_TICKET
+
+UPLOAD_DOCUMENT
+
+DELETE_DOCUMENT
+
+AI_RESPONSE
+
+AI_ESCALATION
+
+RESET_PASSWORD
+
+CREATE_USER
+
+UPDATE_PERMISSION
+
+EXPORT_DATA
+
+IMPORT_DATA
+```
+
+---
+
+# 9. Primary Key
+
+```
+audit_log_id
+```
+
+BIGINT AUTO_INCREMENT
+
+---
+
+# 10. Foreign Keys
+
+## Company
+
+```
+company_id
+
+↓
+
+companies.company_id
+```
+
+Delete Rule
+
+```
+RESTRICT
+```
+
+---
+
+## User
+
+```
+user_id
+
+↓
+
+users.user_id
+```
+
+Delete Rule
+
+```
+SET NULL
+```
+
+Historical integrity is preserved even if a user account is removed.
+
+---
+
+# 11. Unique Constraints
+
+```
+audit_uuid
+```
+
+---
+
+# 12. Indexes
+
+Primary
+
+```
+audit_log_id
+```
+
+Unique
+
+```
+audit_uuid
+```
+
+Indexes
+
+```
+company_id
+
+user_id
+
+actor_type
+
+action
+
+entity_type
+
+entity_id
+
+status
+
+created_at
+
+request_id
+```
+
+Composite
+
+```
+(company_id, created_at)
+
+(company_id, action)
+
+(company_id, entity_type)
+
+(user_id, created_at)
+
+(entity_type, entity_id)
+
+(request_id)
+
+(company_id, status)
+```
+
+---
+
+# 13. Validation Rules
+
+Action
+
+- Required
+- Maximum 100 characters
+
+---
+
+Entity Type
+
+- Required
+
+Examples
+
+```
+USER
+
+DOCUMENT
+
+CHAT_SESSION
+
+CHAT_MESSAGE
+
+TICKET
+
+ROLE
+
+PERMISSION
+```
+
+---
+
+Request ID
+
+Must be UUID v4 if present.
+
+---
+
+Old Values
+
+Must contain only modified fields.
+
+---
+
+New Values
+
+Must contain only updated values.
+
+---
+
+Sensitive Fields
+
+Never store
+
+```
+Passwords
+
+Refresh Tokens
+
+Access Tokens
+
+JWT Secrets
+
+API Keys
+
+Private Keys
+
+Credit Card Numbers
+
+CVV
+
+OTP Codes
+```
+
+---
+
+# 14. CRUD Operations
+
+## Create
+
+Automatically created by services.
+
+---
+
+## Read
+
+Retrieve logs.
+
+Search history.
+
+Generate reports.
+
+---
+
+## Update
+
+Not allowed.
+
+---
+
+## Delete
+
+Not allowed.
+
+Retention policy only.
+
+---
+
+# 15. SQLAlchemy Model Example
+
+```python
+class AuditLog(Base):
+
+    __tablename__ = "audit_logs"
+
+    audit_log_id = mapped_column(
+        BigInteger,
+        primary_key=True
+    )
+
+    company_id = mapped_column(
+        ForeignKey("companies.company_id"),
+        nullable=False
+    )
+
+    user_id = mapped_column(
+        ForeignKey("users.user_id")
+    )
+
+    audit_uuid = mapped_column(
+        String(36),
+        unique=True
+    )
+```
+
+---
+
+# 16. Repository Responsibilities
+
+AuditLogRepository should provide
+
+- Create audit record
+- Search audit logs
+- Get by UUID
+- Filter by user
+- Filter by entity
+- Filter by action
+- Filter by request
+- Export reports
+- Retention processing
+
+---
+
+# 17. Service Responsibilities
+
+AuditService should
+
+- Record business events
+- Mask sensitive values
+- Correlate request IDs
+- Record failures
+- Record AI actions
+- Record authentication events
+- Record permission changes
+- Export compliance reports
+
+---
+
+# 18. Related API Endpoints
+
+```
+GET    /api/v1/audit-logs
+
+GET    /api/v1/audit-logs/{id}
+
+GET    /api/v1/audit-logs/entity/{entityType}/{entityId}
+
+GET    /api/v1/audit-logs/user/{userId}
+
+GET    /api/v1/audit-logs/request/{requestId}
+
+POST   /api/v1/audit-logs/export
+```
+
+Administrative access only.
+
+---
+
+# 19. Sample Record
+
+```json
+{
+  "audit_log_id": 10001,
+  "company_id": 1,
+  "user_id": 35,
+  "actor_type": "ADMIN",
+  "action": "UPDATE_TICKET",
+  "entity_type": "TICKET",
+  "entity_id": 220,
+  "status": "SUCCESS",
+  "change_summary": "Priority changed from MEDIUM to HIGH.",
+  "ip_address": "203.81.45.100",
+  "request_id": "cb4c7d74-9b77-4cb6-a2cb-648fc8df82fd"
+}
+```
+
+---
+
+# 20. Audit Flow
+
+```
+Incoming Request
+
+↓
+
+Authentication
+
+↓
+
+Authorization
+
+↓
+
+Business Logic
+
+↓
+
+Database Transaction
+
+↓
+
+Generate Audit Event
+
+↓
+
+Commit Transaction
+
+↓
+
+Analytics
+```
+
+Audit logging should occur within the same transaction where feasible to maintain consistency.
+
+---
+
+# 21. Security Considerations
+
+- Enforce tenant isolation.
+- Restrict audit access to authorized administrators.
+- Encrypt backups.
+- Digitally sign exported audit reports if required.
+- Never expose sensitive values.
+- Log authorization failures.
+- Record suspicious activities.
+- Support immutable storage for regulatory environments.
+
+---
+
+# 22. Performance Considerations
+
+- Partition large audit tables by date.
+- Archive historical records.
+- Compress archived partitions.
+- Index common search fields.
+- Avoid storing unnecessary payloads.
+- Stream audit events to analytics platforms if needed.
+
+---
+
+# 23. Future Enhancements
+
+- Event sourcing integration
+- SIEM integration
+- Real-time security alerts
+- Tamper detection
+- Digital signatures
+- Blockchain-backed audit verification
+- Compliance dashboards
+- Advanced search
+- Audit replay
+- AI anomaly detection
+
+---
+
+# 24. Cursor AI Instructions
+
+When generating code for `audit_logs`:
+
+1. Never update or delete audit records.
+2. Create audit records for every business-critical action.
+3. Mask sensitive fields before storage.
+4. Include request correlation IDs.
+5. Record AI actions and background jobs.
+6. Record authorization failures.
+7. Ensure audit logging does not expose secrets.
+8. Keep ORM models, migrations, repositories, services, and documentation synchronized.
+
+---
+
+# 25. Definition of Done
+
+The `audit_logs` implementation is complete when:
+
+- Migration created
+- SQLAlchemy model implemented
+- Repository implemented
+- Audit service implemented
+- Automatic audit middleware integrated
+- Request ID correlation implemented
+- Sensitive data masking implemented
+- Export functionality implemented
+- Retention policy implemented
+- Unit tests passing
+- Integration tests passing
+- Documentation updated
+
+---
+
+# 26. Architecture Notes
+
+Recommended audit architecture
+
+```
+HTTP Request
+
+↓
+
+Authentication
+
+↓
+
+Authorization
+
+↓
+
+Business Service
+
+↓
+
+Audit Middleware
+
+↓
+
+Audit Service
+
+↓
+
+Audit Logs
+
+↓
+
+Reporting
+
+↓
+
+Compliance
+```
+
+The **audit_logs** table is the authoritative record of business activity across the platform. Every security-sensitive, customer-facing, administrative, and AI-driven operation should generate an audit event to ensure traceability, accountability, and compliance.
+
+---
+
+# End of Document
+

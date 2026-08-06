@@ -1,0 +1,713 @@
+# Database Documentation
+# 03_Tables/documents.md
+
+# Table Specification: documents
+
+**Database:** ai_customer_support
+
+**Schema:** public
+
+**Table Name:** documents
+
+**Module:** Knowledge Base Management
+
+**Owner:** AI Platform Team
+
+**Status:** Approved
+
+**Version:** 1.0
+
+**Related Documents**
+
+- 00_Overview.md
+- 01_Design_Principles.md
+- 02_ERD.md
+- companies.md
+- users.md
+- knowledge_chunks.md
+- ai_settings.md
+
+---
+
+# 1. Purpose
+
+The **documents** table stores every knowledge source uploaded by a company that can be used by the AI assistant to answer customer questions.
+
+The actual file is stored in object storage (AWS S3, Azure Blob, Google Cloud Storage, MinIO, etc.).
+
+The database stores only document metadata.
+
+Once uploaded, documents pass through an AI processing pipeline:
+
+```
+Upload
+
+↓
+
+Virus Scan
+
+↓
+
+Text Extraction
+
+↓
+
+Chunking
+
+↓
+
+Embedding Generation
+
+↓
+
+Vector Database
+
+↓
+
+Ready for AI Search
+```
+
+The AI never reads the original document directly.
+
+It retrieves relevant chunks from the vector database.
+
+---
+
+# 2. Business Responsibilities
+
+The documents table is responsible for:
+
+- Document registration
+- File metadata
+- Upload tracking
+- Processing status
+- AI indexing status
+- Version control
+- Search eligibility
+- Storage tracking
+- Ownership
+
+---
+
+# 3. Supported Document Types
+
+Supported formats include:
+
+```
+PDF
+
+DOCX
+
+TXT
+
+HTML
+
+Markdown
+
+CSV
+
+XLSX
+
+PPTX
+
+JSON
+
+XML
+
+FAQ
+
+Knowledge Articles
+```
+
+Future
+
+```
+Confluence
+
+Notion
+
+Google Docs
+
+SharePoint
+
+Zendesk
+
+Freshdesk
+
+GitHub Wiki
+```
+
+---
+
+# 4. Business Rules
+
+### Rule 1
+
+Every document belongs to exactly one company.
+
+---
+
+### Rule 2
+
+Every document has exactly one uploader.
+
+---
+
+### Rule 3
+
+The uploaded file is immutable.
+
+A new version creates a new processing cycle.
+
+---
+
+### Rule 4
+
+Documents cannot be used until processing is completed successfully.
+
+---
+
+### Rule 5
+
+Deleting a document removes:
+
+- Knowledge chunks
+- Embeddings
+- Search indexes
+
+Chat history remains unchanged.
+
+---
+
+### Rule 6
+
+Files larger than the configured limit are rejected.
+
+---
+
+### Rule 7
+
+Duplicate files are detected using SHA-256 hashes.
+
+---
+
+### Rule 8
+
+Documents are soft deleted.
+
+---
+
+# 5. Relationships
+
+```
+Company
+
+│
+
+└── Documents
+
+      │
+
+      ├── Knowledge Chunks
+
+      ├── AI Embeddings
+
+      ├── Processing Jobs
+
+      └── Upload User
+```
+
+---
+
+# 6. Columns
+
+| Column | Type | Nullable | Default | Description |
+|----------|------|----------|----------|-------------|
+| document_id | BIGINT | No | Auto Increment | Primary Key |
+| company_id | BIGINT | No | — | Tenant |
+| uploaded_by | BIGINT | No | — | User |
+| document_name | VARCHAR(255) | No | — | Display name |
+| original_filename | VARCHAR(255) | No | — | Uploaded filename |
+| storage_path | VARCHAR(1000) | No | — | Object storage path |
+| storage_provider | ENUM | No | LOCAL | Storage backend |
+| mime_type | VARCHAR(150) | No | — | MIME type |
+| file_extension | VARCHAR(20) | No | — | Extension |
+| file_size_bytes | BIGINT | No | — | File size |
+| file_hash | CHAR(64) | No | — | SHA-256 hash |
+| language | VARCHAR(20) | No | en | Detected language |
+| version | INT | No | 1 | Version number |
+| page_count | INT | Yes | NULL | Number of pages |
+| total_chunks | INT | No | 0 | Generated chunks |
+| embedding_provider | VARCHAR(100) | Yes | NULL | OpenAI, Gemini, etc. |
+| embedding_model | VARCHAR(100) | Yes | NULL | Model name |
+| processing_status | ENUM | No | UPLOADED | Pipeline status |
+| processing_started_at | DATETIME | Yes | NULL | Pipeline start |
+| processing_completed_at | DATETIME | Yes | NULL | Pipeline completion |
+| indexed_at | DATETIME | Yes | NULL | Indexed into vector DB |
+| last_accessed_at | DATETIME | Yes | NULL | Last AI retrieval |
+| description | TEXT | Yes | NULL | Optional description |
+| tags | JSON | Yes | NULL | Search tags |
+| metadata | JSON | Yes | NULL | Additional metadata |
+| created_at | TIMESTAMP | No | CURRENT_TIMESTAMP | Created |
+| updated_at | TIMESTAMP | No | CURRENT_TIMESTAMP | Updated |
+| deleted_at | TIMESTAMP | Yes | NULL | Soft delete |
+
+---
+
+# 7. Enumerations
+
+## storage_provider
+
+```
+LOCAL
+
+AWS_S3
+
+AZURE_BLOB
+
+GOOGLE_CLOUD
+
+MINIO
+```
+
+---
+
+## processing_status
+
+```
+UPLOADED
+
+QUEUED
+
+PROCESSING
+
+CHUNKING
+
+EMBEDDING
+
+INDEXING
+
+COMPLETED
+
+FAILED
+
+ARCHIVED
+```
+
+---
+
+# 8. Primary Key
+
+```
+document_id
+```
+
+BIGINT AUTO_INCREMENT
+
+---
+
+# 9. Foreign Keys
+
+## Company
+
+```
+company_id
+
+↓
+
+companies.company_id
+```
+
+Delete Rule
+
+```
+RESTRICT
+```
+
+---
+
+## Uploaded By
+
+```
+uploaded_by
+
+↓
+
+users.user_id
+```
+
+Delete Rule
+
+```
+RESTRICT
+```
+
+---
+
+# 10. Unique Constraints
+
+Prevent duplicate uploads inside the same tenant.
+
+```
+(company_id, file_hash)
+```
+
+---
+
+# 11. Indexes
+
+Primary
+
+```
+document_id
+```
+
+Indexes
+
+```
+company_id
+
+uploaded_by
+
+processing_status
+
+created_at
+
+indexed_at
+
+language
+```
+
+Composite
+
+```
+(company_id, processing_status)
+
+(company_id, created_at)
+
+(company_id, file_hash)
+
+(company_id, document_name)
+```
+
+---
+
+# 12. Validation Rules
+
+## Document Name
+
+- Required
+- Maximum 255 characters
+
+---
+
+## File Size
+
+Maximum size determined by subscription plan.
+
+Example
+
+| Plan | Max Size |
+|--------|----------|
+| Free | 10 MB |
+| Starter | 25 MB |
+| Pro | 100 MB |
+| Enterprise | 500 MB |
+
+---
+
+## File Hash
+
+Must be SHA-256.
+
+Exactly 64 hexadecimal characters.
+
+---
+
+## Storage Path
+
+Must reference a valid object in the configured storage provider.
+
+---
+
+## MIME Type
+
+Must match allowed upload types.
+
+---
+
+# 13. Processing Pipeline
+
+```
+Upload
+
+↓
+
+Virus Scan
+
+↓
+
+Extract Text
+
+↓
+
+Normalize Text
+
+↓
+
+Split into Chunks
+
+↓
+
+Generate Embeddings
+
+↓
+
+Store in Vector DB
+
+↓
+
+Mark Completed
+```
+
+If any step fails:
+
+```
+FAILED
+```
+
+The document is excluded from AI retrieval until successfully reprocessed.
+
+---
+
+# 14. CRUD Operations
+
+## Create
+
+Upload new document.
+
+---
+
+## Read
+
+Retrieve document metadata.
+
+---
+
+## Update
+
+Update metadata only.
+
+The original file is immutable.
+
+---
+
+## Delete
+
+Soft delete.
+
+Queue cleanup for:
+
+- Chunks
+- Embeddings
+- Vector index
+
+---
+
+# 15. SQLAlchemy Model Example
+
+```python
+class Document(Base):
+    __tablename__ = "documents"
+
+    document_id = mapped_column(
+        BigInteger,
+        primary_key=True
+    )
+
+    company_id = mapped_column(
+        ForeignKey("companies.company_id"),
+        nullable=False
+    )
+
+    uploaded_by = mapped_column(
+        ForeignKey("users.user_id"),
+        nullable=False
+    )
+
+    document_name = mapped_column(
+        String(255),
+        nullable=False
+    )
+
+    processing_status = mapped_column(
+        String(50),
+        default="UPLOADED"
+    )
+
+    company = relationship(
+        "Company",
+        back_populates="documents"
+    )
+
+    chunks = relationship(
+        "KnowledgeChunk",
+        back_populates="document",
+        cascade="all, delete-orphan"
+    )
+```
+
+---
+
+# 16. Repository Responsibilities
+
+DocumentRepository should provide:
+
+- Upload metadata
+- Get by ID
+- Get by hash
+- List company documents
+- Update processing status
+- Update indexing status
+- Soft delete
+- Search metadata
+- Count documents
+- Storage usage
+
+---
+
+# 17. Service Responsibilities
+
+DocumentService should:
+
+- Validate uploads
+- Verify MIME types
+- Calculate SHA-256 hash
+- Check duplicate uploads
+- Queue AI processing
+- Trigger chunk generation
+- Trigger embedding generation
+- Trigger vector indexing
+- Enforce subscription storage limits
+
+---
+
+# 18. Related API Endpoints
+
+```
+POST   /api/v1/documents
+
+GET    /api/v1/documents
+
+GET    /api/v1/documents/{id}
+
+PUT    /api/v1/documents/{id}
+
+DELETE /api/v1/documents/{id}
+
+POST   /api/v1/documents/{id}/reindex
+
+GET    /api/v1/documents/{id}/status
+
+GET    /api/v1/documents/storage
+```
+
+---
+
+# 19. Sample Record
+
+```json
+{
+  "document_id": 101,
+  "company_id": 1,
+  "uploaded_by": 25,
+  "document_name": "Refund Policy",
+  "original_filename": "refund-policy.pdf",
+  "storage_provider": "AWS_S3",
+  "processing_status": "COMPLETED",
+  "total_chunks": 67,
+  "embedding_model": "text-embedding-3-large",
+  "file_size_bytes": 284712,
+  "language": "en"
+}
+```
+
+---
+
+# 20. Security Considerations
+
+- Scan all uploaded files for malware.
+- Restrict downloads to authorized users.
+- Validate MIME type and extension.
+- Never trust client-provided metadata.
+- Encrypt files at rest.
+- Use signed URLs for downloads.
+- Log upload, delete, and reindex events.
+
+---
+
+# 21. Performance Considerations
+
+- Store files outside MySQL.
+- Use asynchronous background processing.
+- Queue embedding generation.
+- Cache document metadata.
+- Batch indexing jobs.
+- Track processing metrics for monitoring.
+
+---
+
+# 22. Future Enhancements
+
+- OCR for scanned PDFs
+- Image understanding
+- Audio transcription
+- Video transcription
+- Automatic language detection
+- Version history
+- Document approval workflow
+- Incremental re-indexing
+- Duplicate similarity detection
+- Scheduled synchronization with external knowledge sources
+
+---
+
+# 23. Cursor AI Instructions
+
+When generating code for `documents`:
+
+1. Never store file binaries in MySQL.
+2. Always calculate SHA-256 hashes.
+3. Use asynchronous processing for AI indexing.
+4. Keep metadata and vector database synchronized.
+5. Remove vector embeddings when documents are deleted.
+6. Validate file size and MIME type before upload.
+7. Enforce tenant isolation using `company_id`.
+8. Keep migrations, ORM models, repositories, services, and documentation synchronized.
+
+---
+
+# 24. Definition of Done
+
+The `documents` table implementation is complete when:
+
+- Migration created
+- SQLAlchemy model implemented
+- Object storage integrated
+- File upload implemented
+- Virus scanning integrated
+- Background processing implemented
+- Chunk generation implemented
+- Embedding generation implemented
+- Vector database integration completed
+- Repository implemented
+- Service implemented
+- API endpoints implemented
+- Unit tests passing
+- Integration tests passing
+- Documentation updated
+
+---
+
+# End of Document
+

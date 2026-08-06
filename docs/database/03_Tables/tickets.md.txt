@@ -1,0 +1,834 @@
+# Database Documentation
+# 03_Tables/tickets.md
+
+# Table Specification: tickets
+
+**Database:** ai_customer_support
+
+**Schema:** public
+
+**Table Name:** tickets
+
+**Module:** Customer Support / Help Desk
+
+**Owner:** Support Platform Team
+
+**Status:** Approved
+
+**Version:** 1.0
+
+**Related Documents**
+
+- 00_Overview.md
+- 01_Design_Principles.md
+- 02_ERD.md
+- chat_sessions.md
+- chat_messages.md
+- companies.md
+- users.md
+- ticket_messages.md
+- ticket_attachments.md
+- audit_logs.md
+- notifications.md
+
+---
+
+# 1. Purpose
+
+The **tickets** table represents a customer support request that requires human intervention.
+
+Tickets are created when:
+
+- AI confidence score is below the configured threshold
+- Customer explicitly requests a human agent
+- AI cannot answer the question
+- AI detects customer frustration
+- Business workflow requires manual approval
+- An administrator manually creates a ticket
+
+Every ticket belongs to exactly one company and one customer.
+
+A ticket may optionally originate from an AI chat session.
+
+---
+
+# 2. Business Responsibilities
+
+The tickets table is responsible for:
+
+- Ticket lifecycle management
+- Human agent assignment
+- Priority management
+- SLA tracking
+- Escalation tracking
+- Customer communication
+- Resolution tracking
+- Reporting and analytics
+
+---
+
+# 3. Business Rules
+
+### Rule 1
+
+Every ticket belongs to one company.
+
+---
+
+### Rule 2
+
+Every ticket belongs to one customer.
+
+---
+
+### Rule 3
+
+A ticket may have zero or one originating chat session.
+
+---
+
+### Rule 4
+
+A ticket may have one assigned support agent.
+
+---
+
+### Rule 5
+
+Closed tickets cannot receive new replies unless reopened.
+
+---
+
+### Rule 6
+
+Tickets are never permanently deleted.
+
+They are archived.
+
+---
+
+### Rule 7
+
+Every ticket must have a priority.
+
+---
+
+### Rule 8
+
+Every ticket must have a status.
+
+---
+
+### Rule 9
+
+Every ticket receives a unique ticket number.
+
+Example
+
+```
+SUP-2026-000001
+```
+
+---
+
+### Rule 10
+
+All ticket changes must be audited.
+
+---
+
+# 4. Relationships
+
+```
+Company
+   │
+   ├── Customers
+   │
+   ├── Tickets
+   │      │
+   │      ├── Ticket Messages
+   │      ├── Attachments
+   │      ├── Assigned Agent
+   │      ├── Chat Session
+   │      └── Audit Logs
+```
+
+---
+
+# 5. Ticket Lifecycle
+
+```
+Created
+
+↓
+
+Open
+
+↓
+
+Assigned
+
+↓
+
+In Progress
+
+↓
+
+Waiting for Customer
+
+↓
+
+Resolved
+
+↓
+
+Closed
+
+↓
+
+Archived
+```
+
+---
+
+# 6. Columns
+
+| Column | Type | Nullable | Default | Description |
+|---------|------|----------|----------|-------------|
+| ticket_id | BIGINT | No | Auto Increment | Primary Key |
+| company_id | BIGINT | No | — | Company |
+| customer_id | BIGINT | No | — | Customer |
+| assigned_agent_id | BIGINT | Yes | NULL | Assigned support agent |
+| session_id | BIGINT | Yes | NULL | Originating chat session |
+| ticket_number | VARCHAR(30) | No | — | Public ticket number |
+| subject | VARCHAR(255) | No | — | Ticket title |
+| description | LONGTEXT | No | — | Initial issue |
+| category | VARCHAR(100) | Yes | NULL | Category |
+| priority | ENUM | No | MEDIUM | Ticket priority |
+| status | ENUM | No | OPEN | Ticket status |
+| source | ENUM | No | AI_CHAT | Ticket source |
+| ai_confidence_score | DECIMAL(5,2) | Yes | NULL | AI confidence |
+| first_response_due_at | DATETIME | Yes | NULL | SLA |
+| resolution_due_at | DATETIME | Yes | NULL | SLA |
+| first_response_at | DATETIME | Yes | NULL | Agent response |
+| resolved_at | DATETIME | Yes | NULL | Resolution time |
+| closed_at | DATETIME | Yes | NULL | Close time |
+| customer_rating | TINYINT | Yes | NULL | Rating (1–5) |
+| customer_feedback | TEXT | Yes | NULL | Review |
+| tags | JSON | Yes | NULL | Labels |
+| metadata | JSON | Yes | NULL | Additional metadata |
+| created_at | TIMESTAMP | No | CURRENT_TIMESTAMP | Created |
+| updated_at | TIMESTAMP | No | CURRENT_TIMESTAMP | Updated |
+| archived_at | TIMESTAMP | Yes | NULL | Archive date |
+
+---
+
+# 7. Enumerations
+
+## priority
+
+```
+LOW
+
+MEDIUM
+
+HIGH
+
+URGENT
+```
+
+---
+
+## status
+
+```
+OPEN
+
+ASSIGNED
+
+IN_PROGRESS
+
+WAITING_CUSTOMER
+
+WAITING_INTERNAL
+
+RESOLVED
+
+CLOSED
+
+ARCHIVED
+```
+
+---
+
+## source
+
+```
+AI_CHAT
+
+EMAIL
+
+WEB_PORTAL
+
+API
+
+PHONE
+
+MANUAL
+```
+
+---
+
+# 8. Primary Key
+
+```
+ticket_id
+```
+
+---
+
+# 9. Foreign Keys
+
+## Company
+
+```
+company_id
+
+↓
+
+companies.company_id
+```
+
+Delete Rule
+
+```
+RESTRICT
+```
+
+---
+
+## Customer
+
+```
+customer_id
+
+↓
+
+users.user_id
+```
+
+Delete Rule
+
+```
+RESTRICT
+```
+
+---
+
+## Assigned Agent
+
+```
+assigned_agent_id
+
+↓
+
+users.user_id
+```
+
+Delete Rule
+
+```
+SET NULL
+```
+
+---
+
+## Chat Session
+
+```
+session_id
+
+↓
+
+chat_sessions.session_id
+```
+
+Delete Rule
+
+```
+SET NULL
+```
+
+---
+
+# 10. Unique Constraints
+
+```
+ticket_number
+```
+
+---
+
+# 11. Indexes
+
+Primary
+
+```
+ticket_id
+```
+
+Unique
+
+```
+ticket_number
+```
+
+Indexes
+
+```
+company_id
+
+customer_id
+
+assigned_agent_id
+
+status
+
+priority
+
+created_at
+
+resolved_at
+```
+
+Composite
+
+```
+(company_id, status)
+
+(company_id, priority)
+
+(company_id, assigned_agent_id)
+
+(company_id, customer_id)
+
+(status, priority)
+```
+
+---
+
+# 12. Validation Rules
+
+Ticket Number
+
+- Required
+- Unique
+- Immutable
+
+---
+
+Subject
+
+- Required
+- Maximum 255 characters
+
+---
+
+Priority
+
+Must be one of
+
+```
+LOW
+
+MEDIUM
+
+HIGH
+
+URGENT
+```
+
+---
+
+Customer Rating
+
+Allowed values
+
+```
+1
+
+2
+
+3
+
+4
+
+5
+```
+
+---
+
+AI Confidence
+
+Range
+
+```
+0.00
+
+↓
+
+1.00
+```
+
+---
+
+# 13. SLA Workflow
+
+```
+Ticket Created
+
+↓
+
+Calculate SLA
+
+↓
+
+Assign Agent
+
+↓
+
+First Response
+
+↓
+
+Resolution
+
+↓
+
+Closed
+```
+
+SLA timers pause while waiting for the customer if configured.
+
+---
+
+# 14. CRUD Operations
+
+## Create
+
+Automatically from AI escalation or manually by staff.
+
+---
+
+## Read
+
+Retrieve ticket.
+
+List customer tickets.
+
+---
+
+## Update
+
+Allowed fields
+
+- Status
+- Priority
+- Assigned agent
+- Category
+- Tags
+- Metadata
+
+---
+
+## Delete
+
+Not allowed.
+
+Archive instead.
+
+---
+
+# 15. SQLAlchemy Model Example
+
+```python
+class Ticket(Base):
+
+    __tablename__ = "tickets"
+
+    ticket_id = mapped_column(
+        BigInteger,
+        primary_key=True
+    )
+
+    company_id = mapped_column(
+        ForeignKey("companies.company_id"),
+        nullable=False
+    )
+
+    customer_id = mapped_column(
+        ForeignKey("users.user_id"),
+        nullable=False
+    )
+
+    assigned_agent_id = mapped_column(
+        ForeignKey("users.user_id")
+    )
+
+    session_id = mapped_column(
+        ForeignKey("chat_sessions.session_id")
+    )
+
+    messages = relationship(
+        "TicketMessage",
+        back_populates="ticket",
+        cascade="all, delete-orphan"
+    )
+```
+
+---
+
+# 16. Repository Responsibilities
+
+TicketRepository should provide
+
+- Create ticket
+- Get ticket
+- Get by ticket number
+- Assign agent
+- Update status
+- Update priority
+- Close ticket
+- Archive ticket
+- Search tickets
+- Dashboard statistics
+- SLA reports
+
+---
+
+# 17. Service Responsibilities
+
+TicketService should
+
+- Generate ticket number
+- Calculate SLA deadlines
+- Assign agents
+- Escalate AI conversations
+- Send notifications
+- Track response times
+- Track resolution metrics
+- Close tickets
+- Reopen tickets
+- Generate analytics
+
+---
+
+# 18. Related API Endpoints
+
+```
+POST   /api/v1/tickets
+
+GET    /api/v1/tickets
+
+GET    /api/v1/tickets/{id}
+
+GET    /api/v1/tickets/number/{ticketNumber}
+
+PATCH  /api/v1/tickets/{id}
+
+PATCH  /api/v1/tickets/{id}/assign
+
+PATCH  /api/v1/tickets/{id}/priority
+
+PATCH  /api/v1/tickets/{id}/status
+
+PATCH  /api/v1/tickets/{id}/close
+
+PATCH  /api/v1/tickets/{id}/reopen
+```
+
+---
+
+# 19. Sample Record
+
+```json
+{
+    "ticket_id": 2105,
+    "ticket_number": "SUP-2026-000210",
+    "company_id": 1,
+    "customer_id": 105,
+    "assigned_agent_id": 28,
+    "session_id": 901,
+    "subject": "Unable to process refund",
+    "priority": "HIGH",
+    "status": "IN_PROGRESS",
+    "source": "AI_CHAT",
+    "ai_confidence_score": 0.42,
+    "customer_rating": null
+}
+```
+
+---
+
+# 20. Escalation Flow
+
+```
+Customer
+
+↓
+
+AI Chat
+
+↓
+
+Confidence Score
+
+↓
+
+Above Threshold
+
+↓
+
+AI Responds
+
+───────────────
+
+Below Threshold
+
+↓
+
+Create Ticket
+
+↓
+
+Assign Agent
+
+↓
+
+Human Resolution
+```
+
+---
+
+# 21. Security Considerations
+
+- Enforce tenant isolation using `company_id`.
+- Customers can only access their own tickets.
+- Agents only access assigned or authorized tickets.
+- Administrators can access company tickets.
+- Record every status change in audit logs.
+- Prevent unauthorized assignment changes.
+
+---
+
+# 22. Performance Considerations
+
+- Index frequently filtered columns.
+- Cache dashboard metrics.
+- Paginate ticket listings.
+- Archive old closed tickets.
+- Use background jobs for notifications.
+- Precompute SLA metrics where practical.
+
+---
+
+# 23. Future Enhancements
+
+- Automatic agent assignment
+- Skill-based routing
+- Round-robin assignment
+- AI-generated ticket summaries
+- AI priority prediction
+- SLA breach prediction
+- Customer sentiment scoring
+- Internal notes
+- Watchers and followers
+- Custom ticket fields
+- Multi-level approvals
+
+---
+
+# 24. Cursor AI Instructions
+
+When generating code for `tickets`:
+
+1. Never physically delete tickets.
+2. Generate sequential ticket numbers.
+3. Enforce tenant isolation.
+4. Calculate SLA deadlines automatically.
+5. Record all status changes.
+6. Support AI-to-human escalation.
+7. Keep audit logs synchronized.
+8. Keep ORM models, migrations, repositories, services, and documentation synchronized.
+
+---
+
+# 25. Definition of Done
+
+The `tickets` implementation is complete when:
+
+- Migration created
+- SQLAlchemy model implemented
+- Repository implemented
+- Service implemented
+- Ticket numbering implemented
+- SLA engine implemented
+- Agent assignment implemented
+- AI escalation integrated
+- API endpoints implemented
+- Dashboard metrics implemented
+- Unit tests passing
+- Integration tests passing
+- Documentation updated
+
+---
+
+# 26. Architecture Notes
+
+Recommended workflow
+
+```
+Customer
+
+↓
+
+AI Chat
+
+↓
+
+Chat Session
+
+↓
+
+Confidence Evaluation
+
+↓
+
+Ticket Creation
+
+↓
+
+Assignment Engine
+
+↓
+
+Support Agent
+
+↓
+
+Ticket Messages
+
+↓
+
+Resolution
+
+↓
+
+Analytics
+```
+
+The **tickets** table is the central entity for human-assisted support. It should integrate seamlessly with AI conversations, notifications, SLA management, reporting, and future workflow automation.
+
+---
+
+# End of Document

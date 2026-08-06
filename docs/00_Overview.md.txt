@@ -1,0 +1,776 @@
+# Database Documentation
+## 00_Overview.md
+
+# AI Customer Support Agent Platform
+### Database Overview
+
+**Version:** 1.0
+
+**Status:** Draft
+
+**Database Engine:** MySQL 8+
+
+**ORM:** SQLAlchemy 2.x
+
+**Migration Tool:** Alembic
+
+**Author:** Engineering Team
+
+---
+
+# 1. Purpose
+
+This document provides a high-level overview of the database architecture used by the AI Customer Support Agent Platform.
+
+The goal of the database design is to provide a scalable, secure, and maintainable data layer that supports:
+
+- Multi-tenant SaaS architecture
+- AI-powered customer support
+- Retrieval-Augmented Generation (RAG)
+- Human ticket escalation
+- Analytics
+- Future integrations
+
+This document should be read before reviewing the individual table specifications.
+
+---
+
+# 2. Design Goals
+
+The database has been designed with the following goals.
+
+## Scalability
+
+The system must support:
+
+- Thousands of companies
+- Millions of chat messages
+- Millions of embeddings
+- Millions of support tickets
+
+---
+
+## Security
+
+The database must:
+
+- Prevent tenant data leakage
+- Store passwords securely
+- Maintain audit logs
+- Support RBAC
+
+---
+
+## Maintainability
+
+The schema should:
+
+- Be normalized
+- Use consistent naming
+- Avoid duplicated data
+- Support schema migrations
+
+---
+
+## Performance
+
+The database should:
+
+- Use indexes correctly
+- Minimize table scans
+- Support pagination
+- Support asynchronous processing
+
+---
+
+## Extensibility
+
+Future modules should be added without major schema changes.
+
+Examples
+
+- CRM
+- Billing
+- Marketplace
+- AI Agents
+- Voice Support
+
+---
+
+# 3. Database Technologies
+
+## Relational Database
+
+MySQL 8+
+
+Purpose
+
+Stores structured application data.
+
+Examples
+
+- Users
+- Companies
+- Tickets
+- Chat Sessions
+- Roles
+
+---
+
+## Vector Database
+
+Development
+
+ChromaDB
+
+Production
+
+Pinecone
+
+Purpose
+
+Stores document embeddings.
+
+---
+
+## Object Storage
+
+Development
+
+Local Storage
+
+Production
+
+AWS S3
+
+Alternative
+
+Cloudflare R2
+
+Purpose
+
+Stores uploaded documents.
+
+---
+
+# 4. Database Architecture
+
+```
+Frontend
+
+↓
+
+FastAPI
+
+↓
+
+Repository Layer
+
+↓
+
+MySQL
+
+↓
+
+Structured Data
+```
+
+AI Retrieval
+
+```
+Customer Question
+
+↓
+
+Embedding
+
+↓
+
+Vector Database
+
+↓
+
+Knowledge Chunks
+
+↓
+
+Prompt
+
+↓
+
+LLM
+```
+
+---
+
+# 5. High-Level Database Modules
+
+The database is divided into logical domains.
+
+---
+
+## Authentication
+
+Stores
+
+- Users
+- Roles
+- Permissions
+- Refresh Tokens
+
+---
+
+## Company
+
+Stores
+
+- Companies
+- Branding
+- Subscription
+- Settings
+
+---
+
+## Knowledge Base
+
+Stores
+
+- Documents
+- Chunks
+- Metadata
+
+Embeddings remain inside the Vector Database.
+
+---
+
+## AI
+
+Stores
+
+- AI Settings
+- Prompt Configuration
+- Confidence Thresholds
+
+---
+
+## Chat
+
+Stores
+
+- Sessions
+- Messages
+- Conversation Metadata
+
+---
+
+## Ticketing
+
+Stores
+
+- Tickets
+- Replies
+- Assignments
+
+---
+
+## Analytics
+
+Stores
+
+- Aggregated Metrics
+- Usage Statistics
+
+---
+
+## Audit
+
+Stores
+
+- Login History
+- User Actions
+- Configuration Changes
+
+---
+
+# 6. Entity Relationship Overview
+
+```
+Company
+
+│
+
+├── Users
+
+│
+
+├── Documents
+
+│     │
+
+│     └── Knowledge Chunks
+
+│
+
+├── Chat Sessions
+
+│      │
+
+│      └── Chat Messages
+
+│
+
+├── Tickets
+
+│      │
+
+│      └── Ticket Messages
+
+│
+
+├── AI Settings
+
+│
+
+└── Audit Logs
+```
+
+---
+
+# 7. Multi-Tenant Strategy
+
+The platform follows a **Shared Database, Shared Schema** multi-tenant architecture.
+
+Every business entity contains a mandatory:
+
+```
+company_id
+```
+
+Examples
+
+```
+users
+
+documents
+
+tickets
+
+chat_sessions
+
+chat_messages
+
+audit_logs
+
+ai_settings
+```
+
+Every query **must** include tenant filtering.
+
+Example
+
+```sql
+SELECT *
+FROM tickets
+WHERE company_id = :company_id;
+```
+
+Cross-tenant queries are prohibited.
+
+---
+
+# 8. Naming Conventions
+
+## Tables
+
+Plural
+
+Examples
+
+```
+users
+
+companies
+
+documents
+
+tickets
+```
+
+---
+
+## Columns
+
+snake_case
+
+Examples
+
+```
+created_at
+
+updated_at
+
+company_id
+
+document_name
+```
+
+---
+
+## Primary Keys
+
+Singular
+
+```
+user_id
+
+ticket_id
+
+company_id
+```
+
+---
+
+## Foreign Keys
+
+Reference parent primary key.
+
+Example
+
+```
+company_id
+
+user_id
+
+ticket_id
+```
+
+---
+
+## Timestamps
+
+Every table should include:
+
+```
+created_at
+
+updated_at
+```
+
+Optional
+
+```
+deleted_at
+```
+
+---
+
+# 9. Data Types
+
+Recommended standards.
+
+| Purpose | Type |
+|----------|------|
+| IDs | BIGINT / INT |
+| Name | VARCHAR(150) |
+| Email | VARCHAR(255) |
+| Password | VARCHAR(255) |
+| Description | TEXT |
+| Large Content | LONGTEXT |
+| Status | ENUM |
+| Boolean | TINYINT(1) |
+| JSON Data | JSON |
+| Dates | DATETIME |
+| Timestamps | TIMESTAMP |
+
+---
+
+# 10. Soft Delete Strategy
+
+Business data should not be permanently deleted.
+
+Use
+
+```
+deleted_at DATETIME NULL
+```
+
+Instead of
+
+```
+DELETE
+```
+
+Benefits
+
+- Recovery
+- Auditing
+- Compliance
+
+Exceptions
+
+Temporary tables
+
+Cache tables
+
+Background job tables
+
+---
+
+# 11. Audit Strategy
+
+Critical operations shall be logged.
+
+Examples
+
+- Login
+- Logout
+- Password Change
+- AI Configuration
+- Ticket Assignment
+- User Creation
+- User Deletion
+- Document Upload
+- Document Delete
+
+Audit records should contain
+
+- User
+- Company
+- Timestamp
+- Action
+- Entity
+- Entity ID
+
+---
+
+# 12. Indexing Strategy
+
+Indexes should exist on:
+
+- company_id
+- email
+- created_at
+- status
+- foreign keys
+
+Composite indexes should be created where filtering commonly uses multiple columns.
+
+Example
+
+```sql
+(company_id, status)
+
+(company_id, created_at)
+
+(company_id, user_id)
+```
+
+---
+
+# 13. Transactions
+
+Transactions are required when:
+
+- Creating company and admin user
+- Uploading documents
+- Creating tickets
+- Assigning agents
+- Deleting users
+
+---
+
+# 14. Database Constraints
+
+The database must enforce:
+
+Primary Keys
+
+Foreign Keys
+
+Unique Constraints
+
+NOT NULL Constraints
+
+CHECK Constraints (where supported)
+
+Application validation **does not replace** database constraints.
+
+---
+
+# 15. Performance Guidelines
+
+Avoid
+
+```
+SELECT *
+```
+
+Always select required columns.
+
+---
+
+Always paginate.
+
+Never return unlimited records.
+
+---
+
+Always use indexes.
+
+---
+
+Avoid N+1 queries.
+
+---
+
+Use eager loading appropriately.
+
+---
+
+Background processing should handle expensive operations.
+
+---
+
+# 16. Backup Strategy
+
+Daily Full Backup
+
+Hourly Incremental Backup
+
+Weekly Snapshot
+
+Monthly Archive
+
+Backups should be encrypted.
+
+Regular restore tests should be performed.
+
+---
+
+# 17. Migration Strategy
+
+All schema changes shall be managed using Alembic.
+
+Rules
+
+- Never modify production tables manually.
+- Every schema change requires a migration.
+- Every migration must be reversible.
+- Every migration requires peer review.
+
+---
+
+# 18. Database Security
+
+Passwords
+
+Argon2 (preferred)
+
+bcrypt (acceptable)
+
+---
+
+Secrets
+
+Never store API keys in database unless encrypted.
+
+---
+
+Access
+
+Least privilege principle.
+
+Application users should only have required permissions.
+
+---
+
+Encryption
+
+TLS for database connections.
+
+Encryption at rest for backups.
+
+---
+
+# 19. Database Documentation Standards
+
+Each table document will contain:
+
+- Purpose
+- Business Rules
+- Columns
+- Data Types
+- Constraints
+- Relationships
+- Indexes
+- Sample Data
+- CRUD Operations
+- Repository Mapping
+- API Usage
+- Validation Rules
+- Future Considerations
+
+---
+
+# 20. Next Documents
+
+The following documents describe the database in detail.
+
+```
+01_Design_Principles.md
+
+02_ERD.md
+
+03_Tables/
+
+companies.md
+
+users.md
+
+roles.md
+
+documents.md
+
+knowledge_chunks.md
+
+chat_sessions.md
+
+chat_messages.md
+
+tickets.md
+
+ticket_messages.md
+
+ai_settings.md
+
+audit_logs.md
+
+refresh_tokens.md
+
+...
+
+04_Indexes.md
+
+05_Migrations.md
+
+06_Backup.md
+
+07_Performance.md
+
+08_MultiTenancy.md
+
+09_SeedData.md
+
+10_QueryGuidelines.md
+```
+
+---
+
+# Conclusion
+
+This database has been designed to support a modern, AI-powered SaaS platform with strong tenant isolation, scalable data storage, secure access control, and long-term maintainability. The following documents expand each area into implementation-level specifications for developers, DBAs, QA engineers, and AI-assisted coding tools like Cursor.
+
+---
+
+**End of Document**
+

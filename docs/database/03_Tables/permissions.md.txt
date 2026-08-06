@@ -1,0 +1,666 @@
+# Database Documentation
+# 03_Tables/permissions.md
+
+# Table Specification: permissions
+
+**Database:** ai_customer_support
+
+**Schema:** public
+
+**Table Name:** permissions
+
+**Module:** Authentication & Authorization (RBAC)
+
+**Owner:** Platform Core
+
+**Status:** Approved
+
+**Version:** 1.0
+
+**Related Documents**
+
+- 00_Overview.md
+- 01_Design_Principles.md
+- 02_ERD.md
+- roles.md
+- role_permissions.md
+- users.md
+
+---
+
+# 1. Purpose
+
+The **permissions** table defines every action that can be performed within the system.
+
+Unlike roles, permissions represent **individual capabilities** such as:
+
+- Create User
+- Delete Document
+- Assign Ticket
+- View Analytics
+
+Roles receive permissions through the **role_permissions** table.
+
+The application **must always authorize based on permissions**, not role names.
+
+---
+
+# 2. Why Permissions?
+
+Instead of checking:
+
+```python
+if user.role == "ADMIN":
+```
+
+The system should check:
+
+```python
+if user.has_permission("tickets.assign"):
+```
+
+Benefits
+
+- Enterprise ready
+- Flexible
+- Custom roles
+- Easier maintenance
+- No hardcoded role logic
+
+---
+
+# 3. Business Responsibilities
+
+The permissions table is responsible for:
+
+- Defining system capabilities
+- Supporting RBAC
+- Feature authorization
+- API authorization
+- UI authorization
+- Future custom roles
+
+---
+
+# 4. Business Rules
+
+### Rule 1
+
+Permission names must be globally unique.
+
+---
+
+### Rule 2
+
+Permissions cannot be deleted if assigned to a role.
+
+---
+
+### Rule 3
+
+System permissions cannot be modified by Company Admins.
+
+---
+
+### Rule 4
+
+Permissions should be grouped by module.
+
+---
+
+### Rule 5
+
+Permission names are immutable after release.
+
+---
+
+### Rule 6
+
+New features must define permissions before implementation.
+
+---
+
+# 5. Naming Convention
+
+Use:
+
+```
+module.action
+```
+
+Examples
+
+```
+users.create
+
+users.read
+
+users.update
+
+users.delete
+
+tickets.assign
+
+tickets.close
+
+documents.upload
+
+analytics.view
+```
+
+Avoid
+
+```
+createUser
+
+admin
+
+delete1
+
+permission_7
+```
+
+---
+
+# 6. Columns
+
+| Column | Type | Nullable | Default | Description |
+|----------|------|----------|----------|-------------|
+| permission_id | INT | No | Auto Increment | Primary Key |
+| permission_name | VARCHAR(150) | No | — | Internal permission |
+| display_name | VARCHAR(200) | No | — | Human-readable name |
+| module | VARCHAR(100) | No | — | Functional module |
+| action | VARCHAR(100) | No | — | Operation |
+| description | TEXT | Yes | NULL | Permission description |
+| is_system_permission | BOOLEAN | No | TRUE | Protected permission |
+| is_active | BOOLEAN | No | TRUE | Available for assignment |
+| created_at | TIMESTAMP | No | CURRENT_TIMESTAMP | Created date |
+| updated_at | TIMESTAMP | No | CURRENT_TIMESTAMP | Last updated |
+
+---
+
+# 7. Primary Key
+
+```
+permission_id
+```
+
+---
+
+# 8. Unique Constraints
+
+```
+permission_name
+```
+
+---
+
+# 9. Indexes
+
+Primary
+
+```
+permission_id
+```
+
+Unique
+
+```
+permission_name
+```
+
+Indexes
+
+```
+module
+
+action
+
+is_active
+```
+
+Composite
+
+```
+(module, action)
+
+(module, is_active)
+```
+
+---
+
+# 10. Permission Categories
+
+## Authentication
+
+```
+auth.login
+
+auth.logout
+
+auth.refresh
+```
+
+---
+
+## Users
+
+```
+users.create
+
+users.read
+
+users.update
+
+users.delete
+
+users.invite
+
+users.export
+```
+
+---
+
+## Companies
+
+```
+companies.read
+
+companies.update
+
+companies.manage
+
+companies.archive
+```
+
+---
+
+## Documents
+
+```
+documents.upload
+
+documents.read
+
+documents.update
+
+documents.delete
+
+documents.reindex
+```
+
+---
+
+## Knowledge Base
+
+```
+knowledge.read
+
+knowledge.manage
+```
+
+---
+
+## Chat
+
+```
+chat.start
+
+chat.read
+
+chat.export
+
+chat.delete
+```
+
+---
+
+## Tickets
+
+```
+tickets.create
+
+tickets.read
+
+tickets.assign
+
+tickets.reply
+
+tickets.close
+
+tickets.reopen
+
+tickets.delete
+```
+
+---
+
+## AI
+
+```
+ai.chat
+
+ai.configure
+
+ai.models.manage
+
+ai.prompts.manage
+```
+
+---
+
+## Dashboard
+
+```
+dashboard.view
+
+analytics.view
+
+analytics.export
+```
+
+---
+
+## Administration
+
+```
+settings.read
+
+settings.update
+
+roles.manage
+
+permissions.manage
+
+audit.view
+```
+
+---
+
+# 11. Validation Rules
+
+Permission Name
+
+- Required
+- Unique
+- Lowercase
+- Dot notation
+- Maximum 150 characters
+
+---
+
+Module
+
+Required.
+
+Should match project module names.
+
+Examples
+
+```
+users
+
+tickets
+
+chat
+
+documents
+```
+
+---
+
+Action
+
+Required.
+
+Examples
+
+```
+create
+
+read
+
+update
+
+delete
+
+assign
+```
+
+---
+
+# 12. CRUD Operations
+
+## Create
+
+Add new permission.
+
+---
+
+## Read
+
+Retrieve permissions.
+
+---
+
+## Update
+
+Only metadata.
+
+Never rename permission_name.
+
+---
+
+## Delete
+
+Allowed only if:
+
+- Not assigned to any role
+- Not a protected permission
+
+---
+
+# 13. SQLAlchemy Model Example
+
+```python
+class Permission(Base):
+    __tablename__ = "permissions"
+
+    permission_id = mapped_column(
+        Integer,
+        primary_key=True
+    )
+
+    permission_name = mapped_column(
+        String(150),
+        unique=True,
+        nullable=False
+    )
+
+    module = mapped_column(
+        String(100),
+        nullable=False
+    )
+
+    action = mapped_column(
+        String(100),
+        nullable=False
+    )
+
+    roles = relationship(
+        "RolePermission",
+        back_populates="permission"
+    )
+```
+
+---
+
+# 14. Repository Responsibilities
+
+PermissionRepository should provide
+
+- Create
+- Get by ID
+- Get by name
+- Search
+- List by module
+- List active
+- Update metadata
+
+---
+
+# 15. Service Responsibilities
+
+PermissionService should
+
+- Validate uniqueness
+- Protect system permissions
+- Group permissions
+- Support permission discovery
+- Manage cache invalidation
+
+---
+
+# 16. Related API Endpoints
+
+```
+GET    /api/v1/permissions
+
+GET    /api/v1/permissions/{id}
+
+POST   /api/v1/permissions
+
+PUT    /api/v1/permissions/{id}
+
+DELETE /api/v1/permissions/{id}
+```
+
+---
+
+# 17. Seed Data (Partial)
+
+```json
+[
+  {
+    "permission_name": "users.create",
+    "module": "users",
+    "action": "create"
+  },
+  {
+    "permission_name": "users.read",
+    "module": "users",
+    "action": "read"
+  },
+  {
+    "permission_name": "tickets.assign",
+    "module": "tickets",
+    "action": "assign"
+  },
+  {
+    "permission_name": "documents.upload",
+    "module": "documents",
+    "action": "upload"
+  }
+]
+```
+
+---
+
+# 18. Authorization Flow
+
+```
+Incoming Request
+
+↓
+
+JWT Authentication
+
+↓
+
+Load User
+
+↓
+
+Load Role
+
+↓
+
+Load Permissions
+
+↓
+
+Permission Check
+
+↓
+
+Authorized?
+
+│
+
+├── Yes → Continue
+
+└── No → HTTP 403
+```
+
+---
+
+# 19. Security Considerations
+
+- Never trust permissions supplied by clients.
+- Resolve permissions server-side.
+- Cache permissions securely.
+- Log permission-denied events.
+- Restrict permission management APIs.
+
+---
+
+# 20. Performance Considerations
+
+- Cache permissions in Redis.
+- Cache role-permission mappings.
+- Load permissions once per request.
+- Avoid repeated database queries for authorization.
+
+---
+
+# 21. Future Enhancements
+
+- Permission groups
+- Dynamic feature flags
+- Tenant-specific permissions
+- Time-limited permissions
+- Context-aware authorization
+- Attribute-Based Access Control (ABAC)
+
+---
+
+# 22. Cursor AI Instructions
+
+When generating authorization code:
+
+1. Never compare role names directly.
+2. Always authorize using permission names.
+3. Keep permission names immutable.
+4. Add permissions for every new feature.
+5. Synchronize seed data, migrations, and documentation.
+
+---
+
+# 23. Definition of Done
+
+The `permissions` table implementation is complete when:
+
+- Migration created
+- SQLAlchemy model implemented
+- Seed data created
+- Repository implemented
+- Service implemented
+- API endpoints implemented
+- Authorization integrated
+- Cache implemented
+- Unit tests passing
+- Documentation updated
+
+---
+
+# End of Document
