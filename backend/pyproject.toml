@@ -12,4 +12,50 @@ pythonpath = ["."]
 
 [tool.ruff]
 line-length = 100
-target-version = "py311"
+target-version = "py314"
+src = ["app", "tests"]
+
+[tool.ruff.lint]
+select = [
+  "E",   # pycodestyle errors
+  "F",   # pyflakes
+  "I",   # isort (via ruff) — kept for local consistency; CI also runs isort
+  "UP",  # pyupgrade
+  "B",   # bugbear
+]
+ignore = [
+  "E501",  # line length enforced by Black/Ruff formatter separately
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["app"]
+
+[tool.black]
+line-length = 100
+target-version = ["py314"]
+include = '\.pyi?$'
+
+[tool.isort]
+profile = "black"
+line_length = 100
+src_paths = ["app", "tests"]
+known_first_party = ["app"]
+
+[tool.mypy]
+python_version = "3.14"
+packages = ["app"]
+ignore_missing_imports = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+no_implicit_optional = true
+check_untyped_defs = true
+pretty = true
+show_error_codes = true
+
+[[tool.mypy.overrides]]
+module = [
+  "passlib.*",
+  "jose.*",
+  "aiomysql.*",
+]
+ignore_missing_imports = true
