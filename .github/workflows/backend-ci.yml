@@ -1,0 +1,84 @@
+# Backend Continuous Integration
+#
+# Runs on every push and pull request. Lint → format checks → types →
+# Alembic script load → pytest. First failing step fails the job.
+
+name: Backend CI
+
+on:
+  push:
+  pull_request:
+
+concurrency:
+  group: backend-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: backend
+    shell: bash
+
+jobs:
+  quality-and-tests:
+    name: Lint, type-check, migrations, tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.14
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+          cache: pip
+          cache-dependency-path: |
+            backend/requirements.txt
+            backend/requirements-dev.txt
+
+      - name: Upgrade pip
+        run: python -m pip install --upgrade pip
+
+      - name: Install runtime dependencies
+        run: python -m pip install -r requirements.txt
+
+      - name: Install development tools
+        run: python -m pip install -r requirements-dev.txt
+
+      - name: Ruff lint
+        run: ruff check .
+
+      - name: Black format check
+        run: black --check .
+
+      - name: isort import order check
+        run: isort --check-only --diff .
+
+      - name: MyPy type check
+        run: mypy
+
+      - name: Verify Alembic migrations load
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from alembic.config import Config
+          from alembic.script import ScriptDirectory
+
+          cfg = Config("alembic.ini")
+          scripts = ScriptDirectory.from_config(cfg)
+          revisions = list(scripts.walk_revisions())
+          if not revisions:
+              raise SystemExit("No Alembic revisions found")
+          heads = scripts.get_heads()
+          print(f"Loaded {len(revisions)} revision(s); heads={heads}")
+          for rev in revisions:
+              print(f"  {rev.revision} (down_revision={rev.down_revision}) {rev.doc}")
+          PY
+          alembic history --verbose
+
+      - name: Run pytest
+        run: python -m pytest -q --tb=short
+        env:
+          # Keep CI independent of external MySQL; tests use in-memory SQLite by default.
+          AUTH_HEADER_BYPASS: "true"
