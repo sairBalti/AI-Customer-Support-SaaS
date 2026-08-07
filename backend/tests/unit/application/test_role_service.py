@@ -139,16 +139,22 @@ class FakeCompanies(CompanyRepository):
     async def get_by_id(self, company_id: int, *, include_deleted: bool = False) -> Company | None:
         return self.company if company_id == 10 else None
 
-    async def get_by_slug(self, company_slug: str, *, include_deleted: bool = False) -> Company | None:
+    async def get_by_slug(
+        self, company_slug: str, *, include_deleted: bool = False
+    ) -> Company | None:
         return None
 
     async def get_by_email(self, email: str, *, include_deleted: bool = False) -> Company | None:
         return None
 
-    async def get_by_name(self, company_name: str, *, include_deleted: bool = False) -> Company | None:
+    async def get_by_name(
+        self, company_name: str, *, include_deleted: bool = False
+    ) -> Company | None:
         return None
 
-    async def update(self, company_id: int, data: dict[str, Any], *, include_deleted: bool = False) -> Company | None:
+    async def update(
+        self, company_id: int, data: dict[str, Any], *, include_deleted: bool = False
+    ) -> Company | None:
         return None
 
     async def update_subscription(self, *args: Any, **kwargs: Any) -> Company | None:

@@ -74,7 +74,9 @@ class InMemoryCompanyRepository(CompanyRepository):
             return None
         return company
 
-    async def get_by_slug(self, company_slug: str, *, include_deleted: bool = False) -> Company | None:
+    async def get_by_slug(
+        self, company_slug: str, *, include_deleted: bool = False
+    ) -> Company | None:
         for company in self._rows.values():
             if company.company_slug == company_slug and (include_deleted or not company.deleted_at):
                 return company
@@ -86,7 +88,9 @@ class InMemoryCompanyRepository(CompanyRepository):
                 return company
         return None
 
-    async def get_by_name(self, company_name: str, *, include_deleted: bool = False) -> Company | None:
+    async def get_by_name(
+        self, company_name: str, *, include_deleted: bool = False
+    ) -> Company | None:
         for company in self._rows.values():
             if company.company_name == company_name and (include_deleted or not company.deleted_at):
                 return company

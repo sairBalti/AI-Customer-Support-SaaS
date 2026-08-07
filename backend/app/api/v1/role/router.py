@@ -7,7 +7,12 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Path, Query, status
 
 from app.api.deps import DbSession, RoleServiceDep
-from app.api.security import RequireRoleCreate, RequireRoleDelete, RequireRoleRead, RequireRoleUpdate
+from app.api.security import (
+    RequireRoleCreate,
+    RequireRoleDelete,
+    RequireRoleRead,
+    RequireRoleUpdate,
+)
 from app.api.v1.role.schemas import (
     RoleCreateRequest,
     RoleResponse,
@@ -30,7 +35,7 @@ from app.domain.entities.role import Role
 
 router = APIRouter(prefix="/roles", tags=["Roles"])
 
-_AUTH_RESPONSES = {
+_AUTH_RESPONSES: dict[int | str, dict[str, Any]] = {
     401: {"description": "Missing or invalid JWT"},
     403: {"description": "Insufficient permission or tenant isolation"},
 }
@@ -205,8 +210,7 @@ async def update_role_status(
     "/{role_id}",
     summary="Soft-delete role",
     description=(
-        "Forbidden for system roles, roles assigned to users, "
-        "or roles with permission mappings."
+        "Forbidden for system roles, roles assigned to users, " "or roles with permission mappings."
     ),
     responses=_AUTH_RESPONSES,
 )

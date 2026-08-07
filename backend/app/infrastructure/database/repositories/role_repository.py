@@ -81,7 +81,9 @@ class SQLAlchemyRoleRepository(RoleRepository):
             update(RoleModel).where(RoleModel.role_id == role_id).values(**data)
         )
         await self._session.flush()
-        return await self.get_by_id(role_id, include_deleted=True if "deleted_at" in data else include_deleted)
+        return await self.get_by_id(
+            role_id, include_deleted=True if "deleted_at" in data else include_deleted
+        )
 
     async def soft_delete(self, role_id: int, *, at: datetime) -> Role | None:
         await self.update(role_id, {"deleted_at": at, "is_active": False})
@@ -146,7 +148,11 @@ class SQLAlchemyRoleRepository(RoleRepository):
         total = int((await self._session.execute(count_stmt)).scalar_one())
         col = _SORTABLE.get(sort_by, RoleModel.sort_order)
         order = col.asc() if sort_order.lower() == "asc" else col.desc()
-        stmt = stmt.order_by(order, RoleModel.role_id.asc()).offset((page - 1) * page_size).limit(page_size)
+        stmt = (
+            stmt.order_by(order, RoleModel.role_id.asc())
+            .offset((page - 1) * page_size)
+            .limit(page_size)
+        )
         rows = (await self._session.execute(stmt)).scalars().all()
         return [role_to_entity(m) for m in rows], total
 

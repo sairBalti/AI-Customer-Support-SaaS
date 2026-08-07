@@ -15,4 +15,4 @@ bearer_scheme = HTTPBearer(
     ),
 )
 
-BEARER_SECURITY = [{"BearerAuth": []}]
+BEARER_SECURITY: list[dict[str, list[str]]] = [{"BearerAuth": []}]

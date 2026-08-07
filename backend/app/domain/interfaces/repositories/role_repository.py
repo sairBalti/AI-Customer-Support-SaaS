@@ -13,8 +13,7 @@ class RoleRepository(ABC):
     """Persistence port for roles. No business rules."""
 
     @abstractmethod
-    async def create(self, data: dict[str, Any]) -> Role:
-        ...
+    async def create(self, data: dict[str, Any]) -> Role: ...
 
     @abstractmethod
     async def get_by_id(
@@ -22,8 +21,7 @@ class RoleRepository(ABC):
         role_id: int,
         *,
         include_deleted: bool = False,
-    ) -> Role | None:
-        ...
+    ) -> Role | None: ...
 
     @abstractmethod
     async def get_by_name(
@@ -42,16 +40,13 @@ class RoleRepository(ABC):
         data: dict[str, Any],
         *,
         include_deleted: bool = False,
-    ) -> Role | None:
-        ...
+    ) -> Role | None: ...
 
     @abstractmethod
-    async def soft_delete(self, role_id: int, *, at: datetime) -> Role | None:
-        ...
+    async def soft_delete(self, role_id: int, *, at: datetime) -> Role | None: ...
 
     @abstractmethod
-    async def restore(self, role_id: int) -> Role | None:
-        ...
+    async def restore(self, role_id: int) -> Role | None: ...
 
     @abstractmethod
     async def search(
@@ -67,13 +62,10 @@ class RoleRepository(ABC):
         sort_by: str,
         sort_order: str,
         include_deleted: bool,
-    ) -> tuple[list[Role], int]:
-        ...
+    ) -> tuple[list[Role], int]: ...
 
     @abstractmethod
-    async def count_users_with_role(self, role_id: int) -> int:
-        ...
+    async def count_users_with_role(self, role_id: int) -> int: ...
 
     @abstractmethod
-    async def count_role_permissions(self, role_id: int) -> int:
-        ...
+    async def count_role_permissions(self, role_id: int) -> int: ...

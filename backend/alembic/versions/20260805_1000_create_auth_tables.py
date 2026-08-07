@@ -7,15 +7,15 @@ Create Date: 2026-08-05 10:00:00
 
 from __future__ import annotations
 
-from typing import Sequence, Union
+from collections.abc import Sequence
 
 import sqlalchemy as sa
 from alembic import op
 
 revision: str = "20260805_1000"
-down_revision: Union[str, None] = "20260804_1430"
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | None = "20260804_1430"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
@@ -28,8 +28,18 @@ def upgrade() -> None:
         sa.Column("is_system_role", sa.Boolean(), server_default="1", nullable=False),
         sa.Column("is_active", sa.Boolean(), server_default="1", nullable=False),
         sa.Column("sort_order", sa.Integer(), server_default="0", nullable=False),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("CURRENT_TIMESTAMP"), nullable=False),
-        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("CURRENT_TIMESTAMP"), nullable=False),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("CURRENT_TIMESTAMP"),
+            nullable=False,
+        ),
+        sa.Column(
+            "updated_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("CURRENT_TIMESTAMP"),
+            nullable=False,
+        ),
         sa.PrimaryKeyConstraint("role_id", name=op.f("pk_roles")),
         sa.UniqueConstraint("role_name", name=op.f("uq_roles_role_name")),
     )
@@ -43,8 +53,18 @@ def upgrade() -> None:
         sa.Column("description", sa.Text(), nullable=True),
         sa.Column("is_system_permission", sa.Boolean(), server_default="1", nullable=False),
         sa.Column("is_active", sa.Boolean(), server_default="1", nullable=False),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("CURRENT_TIMESTAMP"), nullable=False),
-        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("CURRENT_TIMESTAMP"), nullable=False),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("CURRENT_TIMESTAMP"),
+            nullable=False,
+        ),
+        sa.Column(
+            "updated_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("CURRENT_TIMESTAMP"),
+            nullable=False,
+        ),
         sa.PrimaryKeyConstraint("permission_id", name=op.f("pk_permissions")),
         sa.UniqueConstraint("permission_name", name=op.f("uq_permissions_permission_name")),
     )
@@ -55,14 +75,32 @@ def upgrade() -> None:
         sa.Column("role_permission_id", sa.Integer(), autoincrement=True, nullable=False),
         sa.Column("role_id", sa.Integer(), nullable=False),
         sa.Column("permission_id", sa.Integer(), nullable=False),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("CURRENT_TIMESTAMP"), nullable=False),
-        sa.ForeignKeyConstraint(["permission_id"], ["permissions.permission_id"], name="fk_role_permissions_permission_id_permissions"),
-        sa.ForeignKeyConstraint(["role_id"], ["roles.role_id"], name="fk_role_permissions_role_id_roles"),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("CURRENT_TIMESTAMP"),
+            nullable=False,
+        ),
+        sa.ForeignKeyConstraint(
+            ["permission_id"],
+            ["permissions.permission_id"],
+            name="fk_role_permissions_permission_id_permissions",
+        ),
+        sa.ForeignKeyConstraint(
+            ["role_id"], ["roles.role_id"], name="fk_role_permissions_role_id_roles"
+        ),
         sa.PrimaryKeyConstraint("role_permission_id", name=op.f("pk_role_permissions")),
         sa.UniqueConstraint("role_id", "permission_id", name="uq_role_permissions_role_permission"),
     )
-    op.create_index(op.f("ix_role_permissions_role_id"), "role_permissions", ["role_id"], unique=False)
-    op.create_index(op.f("ix_role_permissions_permission_id"), "role_permissions", ["permission_id"], unique=False)
+    op.create_index(
+        op.f("ix_role_permissions_role_id"), "role_permissions", ["role_id"], unique=False
+    )
+    op.create_index(
+        op.f("ix_role_permissions_permission_id"),
+        "role_permissions",
+        ["permission_id"],
+        unique=False,
+    )
 
     op.create_table(
         "users",
@@ -88,10 +126,22 @@ def upgrade() -> None:
         sa.Column("last_login_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("last_login_ip", sa.String(length=45), nullable=True),
         sa.Column("status", sa.String(length=32), server_default="ACTIVE", nullable=False),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("CURRENT_TIMESTAMP"), nullable=False),
-        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("CURRENT_TIMESTAMP"), nullable=False),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("CURRENT_TIMESTAMP"),
+            nullable=False,
+        ),
+        sa.Column(
+            "updated_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("CURRENT_TIMESTAMP"),
+            nullable=False,
+        ),
         sa.Column("deleted_at", sa.DateTime(timezone=True), nullable=True),
-        sa.ForeignKeyConstraint(["company_id"], ["companies.company_id"], name="fk_users_company_id_companies"),
+        sa.ForeignKeyConstraint(
+            ["company_id"], ["companies.company_id"], name="fk_users_company_id_companies"
+        ),
         sa.ForeignKeyConstraint(["role_id"], ["roles.role_id"], name="fk_users_role_id_roles"),
         sa.PrimaryKeyConstraint("user_id", name=op.f("pk_users")),
         sa.UniqueConstraint("email", name=op.f("uq_users_email")),
@@ -116,9 +166,21 @@ def upgrade() -> None:
         sa.Column("replaced_by_token_id", sa.BigInteger(), nullable=True),
         sa.Column("user_agent", sa.String(length=500), nullable=True),
         sa.Column("ip_address", sa.String(length=45), nullable=True),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("CURRENT_TIMESTAMP"), nullable=False),
-        sa.ForeignKeyConstraint(["company_id"], ["companies.company_id"], name="fk_refresh_tokens_company_id_companies"),
-        sa.ForeignKeyConstraint(["user_id"], ["users.user_id"], name="fk_refresh_tokens_user_id_users", ondelete="CASCADE"),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("CURRENT_TIMESTAMP"),
+            nullable=False,
+        ),
+        sa.ForeignKeyConstraint(
+            ["company_id"], ["companies.company_id"], name="fk_refresh_tokens_company_id_companies"
+        ),
+        sa.ForeignKeyConstraint(
+            ["user_id"],
+            ["users.user_id"],
+            name="fk_refresh_tokens_user_id_users",
+            ondelete="CASCADE",
+        ),
         sa.PrimaryKeyConstraint("token_id", name=op.f("pk_refresh_tokens")),
     )
     op.create_index("ix_refresh_tokens_user_id", "refresh_tokens", ["user_id"], unique=False)
@@ -156,11 +218,51 @@ def _seed_rbac() -> None:
     )
 
     role_rows = [
-        {"role_id": 1, "role_name": "SUPER_ADMIN", "display_name": "Super Admin", "description": "Platform administrator", "is_system_role": True, "is_active": True, "sort_order": 1},
-        {"role_id": 2, "role_name": "COMPANY_ADMIN", "display_name": "Company Admin", "description": "Company owner/administrator", "is_system_role": True, "is_active": True, "sort_order": 2},
-        {"role_id": 3, "role_name": "SUPPORT_MANAGER", "display_name": "Support Manager", "description": "Manages support agents", "is_system_role": True, "is_active": True, "sort_order": 3},
-        {"role_id": 4, "role_name": "SUPPORT_AGENT", "display_name": "Support Agent", "description": "Handles customer tickets", "is_system_role": True, "is_active": True, "sort_order": 4},
-        {"role_id": 5, "role_name": "CUSTOMER", "display_name": "Customer", "description": "End customer", "is_system_role": True, "is_active": True, "sort_order": 5},
+        {
+            "role_id": 1,
+            "role_name": "SUPER_ADMIN",
+            "display_name": "Super Admin",
+            "description": "Platform administrator",
+            "is_system_role": True,
+            "is_active": True,
+            "sort_order": 1,
+        },
+        {
+            "role_id": 2,
+            "role_name": "COMPANY_ADMIN",
+            "display_name": "Company Admin",
+            "description": "Company owner/administrator",
+            "is_system_role": True,
+            "is_active": True,
+            "sort_order": 2,
+        },
+        {
+            "role_id": 3,
+            "role_name": "SUPPORT_MANAGER",
+            "display_name": "Support Manager",
+            "description": "Manages support agents",
+            "is_system_role": True,
+            "is_active": True,
+            "sort_order": 3,
+        },
+        {
+            "role_id": 4,
+            "role_name": "SUPPORT_AGENT",
+            "display_name": "Support Agent",
+            "description": "Handles customer tickets",
+            "is_system_role": True,
+            "is_active": True,
+            "sort_order": 4,
+        },
+        {
+            "role_id": 5,
+            "role_name": "CUSTOMER",
+            "display_name": "Customer",
+            "description": "End customer",
+            "is_system_role": True,
+            "is_active": True,
+            "sort_order": 5,
+        },
     ]
     perm_defs = [
         ("auth.login", "auth", "login"),

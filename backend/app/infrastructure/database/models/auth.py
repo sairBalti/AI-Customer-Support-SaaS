@@ -116,7 +116,9 @@ class RolePermissionModel(Base):
     )
     permission_id: Mapped[int] = mapped_column(
         Integer,
-        ForeignKey("permissions.permission_id", name="fk_role_permissions_permission_id_permissions"),
+        ForeignKey(
+            "permissions.permission_id", name="fk_role_permissions_permission_id_permissions"
+        ),
         nullable=False,
         index=True,
     )
@@ -166,13 +168,17 @@ class UserModel(Base):
     language: Mapped[str] = mapped_column(String(20), nullable=False, server_default="en")
     timezone: Mapped[str] = mapped_column(String(100), nullable=False, server_default="UTC")
     is_email_verified: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="0")
-    email_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    email_verified_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     failed_login_attempts: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
     locked_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     last_login_ip: Mapped[str | None] = mapped_column(String(45), nullable=True)
     must_change_password: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="0")
-    password_changed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    password_changed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     status: Mapped[UserStatus] = mapped_column(
         Enum(
             UserStatus,

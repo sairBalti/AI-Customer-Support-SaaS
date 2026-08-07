@@ -75,10 +75,7 @@ async def seed_rbac(session: AsyncSession) -> dict[str, int]:
         ("roles.update", "roles", "update"),
         ("roles.delete", "roles", "delete"),
     ]
-    perms = [
-        PermissionModel(permission_name=n, module=m, action=a)
-        for n, m, a in perm_names
-    ]
+    perms = [PermissionModel(permission_name=n, module=m, action=a) for n, m, a in perm_names]
     session.add_all(perms)
     await session.flush()
 

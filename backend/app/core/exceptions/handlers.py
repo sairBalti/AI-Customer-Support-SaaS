@@ -19,6 +19,14 @@ from app.domain.exceptions.auth import (
     TokenInvalidError,
 )
 from app.domain.exceptions.base import DomainError
+from app.domain.exceptions.company import (
+    CompanyAccessDeniedError,
+    CompanyConflictError,
+    CompanyInactiveError,
+    CompanyNotFoundError,
+    CompanyOperationForbiddenError,
+    CompanyValidationError,
+)
 from app.domain.exceptions.role import (
     RoleAccessDeniedError,
     RoleConflictError,
@@ -32,14 +40,6 @@ from app.domain.exceptions.user import (
     UserNotFoundError,
     UserOperationForbiddenError,
     UserValidationError,
-)
-from app.domain.exceptions.company import (
-    CompanyAccessDeniedError,
-    CompanyConflictError,
-    CompanyInactiveError,
-    CompanyNotFoundError,
-    CompanyOperationForbiddenError,
-    CompanyValidationError,
 )
 
 logger = logging.getLogger(__name__)

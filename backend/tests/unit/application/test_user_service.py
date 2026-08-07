@@ -87,7 +87,9 @@ class FakeUsers(UserRepository):
             return None
         return user
 
-    async def get_by_email(self, email: str, *, include_deleted: bool = False) -> ManagedUser | None:
+    async def get_by_email(
+        self, email: str, *, include_deleted: bool = False
+    ) -> ManagedUser | None:
         for user in self.rows.values():
             if user.email == email.lower() and (include_deleted or not user.deleted_at):
                 return user
@@ -205,16 +207,22 @@ class FakeCompanies(CompanyRepository):
     async def get_by_id(self, company_id: int, *, include_deleted: bool = False) -> Company | None:
         return self.company if company_id == 10 else None
 
-    async def get_by_slug(self, company_slug: str, *, include_deleted: bool = False) -> Company | None:
+    async def get_by_slug(
+        self, company_slug: str, *, include_deleted: bool = False
+    ) -> Company | None:
         return None
 
     async def get_by_email(self, email: str, *, include_deleted: bool = False) -> Company | None:
         return None
 
-    async def get_by_name(self, company_name: str, *, include_deleted: bool = False) -> Company | None:
+    async def get_by_name(
+        self, company_name: str, *, include_deleted: bool = False
+    ) -> Company | None:
         return None
 
-    async def update(self, company_id: int, data: dict[str, Any], *, include_deleted: bool = False) -> Company | None:
+    async def update(
+        self, company_id: int, data: dict[str, Any], *, include_deleted: bool = False
+    ) -> Company | None:
         return None
 
     async def update_subscription(self, *args: Any, **kwargs: Any) -> Company | None:
@@ -253,7 +261,9 @@ class FakeRefresh(RefreshTokenRepository):
         self.revoked.append(user_id)
         return 1
 
-    async def rotate(self, old_token_id: int, new_data: dict[str, Any], *, at: datetime) -> RefreshToken:
+    async def rotate(
+        self, old_token_id: int, new_data: dict[str, Any], *, at: datetime
+    ) -> RefreshToken:
         raise NotImplementedError
 
 
@@ -277,9 +287,7 @@ def _admin() -> RequestActor:
         company_id=10,
         is_super_admin=False,
         role_name="COMPANY_ADMIN",
-        permissions=frozenset(
-            {"users.create", "users.read", "users.update", "users.delete"}
-        ),
+        permissions=frozenset({"users.create", "users.read", "users.update", "users.delete"}),
     )
 
 

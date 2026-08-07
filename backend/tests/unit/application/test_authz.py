@@ -48,7 +48,9 @@ def _auth_user(**overrides: object) -> AuthUser:
         "created_at": now,
         "updated_at": now,
         "role_name": "COMPANY_ADMIN",
-        "permissions": frozenset({"auth.login", "companies.read", "companies.update", "companies.manage"}),
+        "permissions": frozenset(
+            {"auth.login", "companies.read", "companies.update", "companies.manage"}
+        ),
     }
     data.update(overrides)
     return AuthUser(**data)  # type: ignore[arg-type]

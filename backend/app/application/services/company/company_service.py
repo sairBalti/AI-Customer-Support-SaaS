@@ -220,7 +220,9 @@ class CompanyService:
             elif clearable == "website":
                 updates["website"] = normalize_website(raw)
             elif clearable == "legal_name":
-                updates["legal_name"] = raw.strip() if isinstance(raw, str) and raw.strip() else None
+                updates["legal_name"] = (
+                    raw.strip() if isinstance(raw, str) and raw.strip() else None
+                )
             else:
                 updates[clearable] = raw
 

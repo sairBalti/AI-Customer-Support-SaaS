@@ -10,7 +10,12 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Path, Query, status
 
 from app.api.deps import CurrentUserDep, DbSession, UserServiceDep
-from app.api.security import RequireUserCreate, RequireUserDelete, RequireUserRead, RequireUserUpdate
+from app.api.security import (
+    RequireUserCreate,
+    RequireUserDelete,
+    RequireUserRead,
+    RequireUserUpdate,
+)
 from app.api.v1.user.schemas import (
     AssignCompanyRequest,
     AssignRolesRequest,

@@ -14,8 +14,7 @@ class UserRepository(ABC):
     """Persistence port for user management. No business rules."""
 
     @abstractmethod
-    async def create(self, data: dict[str, Any]) -> ManagedUser:
-        ...
+    async def create(self, data: dict[str, Any]) -> ManagedUser: ...
 
     @abstractmethod
     async def get_by_id(
@@ -23,8 +22,7 @@ class UserRepository(ABC):
         user_id: int,
         *,
         include_deleted: bool = False,
-    ) -> ManagedUser | None:
-        ...
+    ) -> ManagedUser | None: ...
 
     @abstractmethod
     async def get_by_email(
@@ -32,8 +30,7 @@ class UserRepository(ABC):
         email: str,
         *,
         include_deleted: bool = False,
-    ) -> ManagedUser | None:
-        ...
+    ) -> ManagedUser | None: ...
 
     @abstractmethod
     async def get_by_username(
@@ -41,8 +38,7 @@ class UserRepository(ABC):
         username: str,
         *,
         include_deleted: bool = False,
-    ) -> ManagedUser | None:
-        ...
+    ) -> ManagedUser | None: ...
 
     @abstractmethod
     async def update(
@@ -51,16 +47,13 @@ class UserRepository(ABC):
         data: dict[str, Any],
         *,
         include_deleted: bool = False,
-    ) -> ManagedUser | None:
-        ...
+    ) -> ManagedUser | None: ...
 
     @abstractmethod
-    async def soft_delete(self, user_id: int, *, at: datetime) -> ManagedUser | None:
-        ...
+    async def soft_delete(self, user_id: int, *, at: datetime) -> ManagedUser | None: ...
 
     @abstractmethod
-    async def restore(self, user_id: int) -> ManagedUser | None:
-        ...
+    async def restore(self, user_id: int) -> ManagedUser | None: ...
 
     @abstractmethod
     async def search(
@@ -75,8 +68,7 @@ class UserRepository(ABC):
         sort_by: str,
         sort_order: str,
         include_deleted: bool,
-    ) -> tuple[list[ManagedUser], int]:
-        ...
+    ) -> tuple[list[ManagedUser], int]: ...
 
     @abstractmethod
     async def count_by_company(
@@ -84,8 +76,7 @@ class UserRepository(ABC):
         company_id: int,
         *,
         include_deleted: bool = False,
-    ) -> int:
-        ...
+    ) -> int: ...
 
     @abstractmethod
     async def count_active_company_admins(
@@ -93,16 +84,13 @@ class UserRepository(ABC):
         company_id: int,
         *,
         exclude_user_id: int | None = None,
-    ) -> int:
-        ...
+    ) -> int: ...
 
     @abstractmethod
-    async def get_role_id_by_name(self, role_name: str) -> int | None:
-        ...
+    async def get_role_id_by_name(self, role_name: str) -> int | None: ...
 
     @abstractmethod
-    async def get_role_name(self, role_id: int) -> str | None:
-        ...
+    async def get_role_name(self, role_id: int) -> str | None: ...
 
     @abstractmethod
     async def get_password_hash(self, user_id: int) -> str | None:

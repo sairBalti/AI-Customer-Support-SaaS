@@ -107,12 +107,7 @@ def normalize_website(website: str | None) -> str | None:
         value = f"https://{value}"
     parsed = urlparse(value)
     host = parsed.hostname or ""
-    if (
-        parsed.scheme not in {"http", "https"}
-        or not host
-        or " " in value
-        or "." not in host
-    ):
+    if parsed.scheme not in {"http", "https"} or not host or " " in value or "." not in host:
         raise CompanyValidationError("Website must be a valid http(s) URL.")
     return value
 

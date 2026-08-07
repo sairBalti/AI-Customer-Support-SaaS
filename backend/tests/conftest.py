@@ -2,20 +2,19 @@
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterator
 import os
+from collections.abc import AsyncIterator
 
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
+import app.infrastructure.database.models  # noqa: F401
 from app.core.config.settings import get_settings
 from app.infrastructure.database.base import Base
 from app.infrastructure.database.session import get_db
 from app.main import create_app
-
-import app.infrastructure.database.models  # noqa: F401
 
 
 @pytest.fixture(autouse=True)

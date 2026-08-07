@@ -77,7 +77,9 @@ async def create_company(
         CreateCompanyInput(**body.model_dump()),
         actor,
     )
-    return success_envelope(_to_response(company).model_dump(mode="json"), message="Company created.")
+    return success_envelope(
+        _to_response(company).model_dump(mode="json"), message="Company created."
+    )
 
 
 @router.get(
@@ -180,7 +182,9 @@ async def update_company(
         UpdateCompanyInput(values=body.model_dump(exclude_unset=True)),
         actor,
     )
-    return success_envelope(_to_response(company).model_dump(mode="json"), message="Company updated.")
+    return success_envelope(
+        _to_response(company).model_dump(mode="json"), message="Company updated."
+    )
 
 
 @router.patch(
@@ -246,8 +250,7 @@ async def update_company_subscription(
     status_code=status.HTTP_200_OK,
     summary="Soft-delete company",
     description=(
-        "Admin-only soft-delete. Requires Bearer JWT and `companies.manage`. "
-        "Never hard-deletes."
+        "Admin-only soft-delete. Requires Bearer JWT and `companies.manage`. " "Never hard-deletes."
     ),
     responses={
         401: {"description": "Missing or invalid JWT"},

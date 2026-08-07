@@ -46,7 +46,7 @@ class SQLAlchemyRefreshTokenRepository(RefreshTokenRepository):
             .where(RefreshTokenModel.revoked_at.is_(None))
             .values(revoked_at=at)
         )
-        return int(result.rowcount or 0)
+        return int(getattr(result, "rowcount", 0) or 0)
 
     async def rotate(
         self,

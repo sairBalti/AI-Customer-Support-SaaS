@@ -14,11 +14,10 @@ from sqlalchemy import pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
-from app.core.config import get_settings
-from app.infrastructure.database.base import Base
-
 # Registers ORM tables on Base.metadata when entity models exist.
 import app.infrastructure.database.models  # noqa: F401
+from app.core.config import get_settings
+from app.infrastructure.database.base import Base
 
 config = context.config
 
@@ -58,7 +57,7 @@ def run_migrations_offline() -> None:
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
         compare_type=True,
-        compare_server_default=True,
+        compare_server_default=False,
         process_revision_directives=process_revision_directives,
     )
 
@@ -72,7 +71,7 @@ def do_run_migrations(connection: Connection) -> None:
         connection=connection,
         target_metadata=target_metadata,
         compare_type=True,
-        compare_server_default=True,
+        compare_server_default=False,
         process_revision_directives=process_revision_directives,
     )
 

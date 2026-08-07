@@ -319,7 +319,9 @@ class UserService:
         return await self._set_status(user_id, UserStatus.ACTIVE, actor, action="USER_ACTIVATED")
 
     async def deactivate_user(self, user_id: int, actor: RequestActor) -> ManagedUser:
-        user = await self._set_status(user_id, UserStatus.INACTIVE, actor, action="USER_DEACTIVATED")
+        user = await self._set_status(
+            user_id, UserStatus.INACTIVE, actor, action="USER_DEACTIVATED"
+        )
         await self._refresh_tokens.revoke_all_for_user(user_id, at=datetime.now(UTC))
         return user
 
@@ -489,11 +491,7 @@ class UserService:
         ensure_permissions(actor, "users.update")
         existing = await self._require_user(user_id)
         self._assert_can_manage_company_users(existing.company_id, actor)
-        if (
-            existing.is_company_admin
-            and status != UserStatus.ACTIVE
-            and actor.user_id != user_id
-        ):
+        if existing.is_company_admin and status != UserStatus.ACTIVE and actor.user_id != user_id:
             others = await self._users.count_active_company_admins(
                 existing.company_id,
                 exclude_user_id=user_id,

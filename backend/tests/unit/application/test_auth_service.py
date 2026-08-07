@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from typing import Any
 
 import pytest
@@ -31,7 +31,9 @@ class FakeUsers(AuthUserRepository):
     async def get_permissions_for_role(self, role_id: int) -> frozenset[str]:
         return self.user.permissions
 
-    async def record_login_success(self, user_id: int, *, ip_address: str | None, at: datetime) -> None:
+    async def record_login_success(
+        self, user_id: int, *, ip_address: str | None, at: datetime
+    ) -> None:
         self.user.failed_login_attempts = 0
         self.user.last_login_at = at
         self.user.last_login_ip = ip_address
@@ -83,7 +85,9 @@ class FakeRefresh(RefreshTokenRepository):
                 count += 1
         return count
 
-    async def rotate(self, old_token_id: int, new_data: dict[str, Any], *, at: datetime) -> RefreshToken:
+    async def rotate(
+        self, old_token_id: int, new_data: dict[str, Any], *, at: datetime
+    ) -> RefreshToken:
         await self.revoke(old_token_id, at=at)
         return await self.create(new_data)
 

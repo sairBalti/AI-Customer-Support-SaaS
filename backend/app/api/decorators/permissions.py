@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Any, TypeVar
+from typing import Any, TypeVar, cast
 
 F = TypeVar("F", bound=Callable[..., Any])
 
@@ -21,7 +21,7 @@ def permissions(*required: str) -> Callable[[F], F]:
     """
 
     def decorator(func: F) -> F:
-        setattr(func, "permissions", required)
+        cast(Any, func).permissions = required
         return func
 
     return decorator

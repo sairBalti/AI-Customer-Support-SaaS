@@ -3,11 +3,8 @@
 from __future__ import annotations
 
 import math
-from typing import Generic, TypeVar
 
 from pydantic import BaseModel, Field
-
-T = TypeVar("T")
 
 
 class PaginationParams(BaseModel):
@@ -24,7 +21,7 @@ class PageMeta(BaseModel):
     total_pages: int
 
 
-class Page(BaseModel, Generic[T]):
+class Page[T](BaseModel):
     items: list[T]
     meta: PageMeta
 

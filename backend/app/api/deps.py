@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from typing import Annotated
 
 from fastapi import Depends, Header, Request
@@ -206,7 +206,7 @@ async def get_request_actor(actor: OptionalActorDep) -> RequestActor:
 RequestActorDep = Annotated[RequestActor, Depends(get_request_actor)]
 
 
-def require_permissions(*permissions: str) -> Callable[..., RequestActor]:
+def require_permissions(*permissions: str) -> Callable[..., Awaitable[RequestActor]]:
     """Permission dependency factory (RBAC). Requires authenticated CurrentUser."""
 
     async def _dependency(actor: CurrentActorDep) -> RequestActor:
