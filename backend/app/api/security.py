@@ -60,6 +60,27 @@ RequireRoleDelete = Annotated[
     Depends(require_permissions("roles.delete")),
 ]
 
+RequireDocumentUpload = Annotated[
+    RequestActor,
+    Depends(require_permissions("documents.upload")),
+]
+RequireDocumentRead = Annotated[
+    RequestActor,
+    Depends(require_permissions("documents.read")),
+]
+RequireDocumentUpdate = Annotated[
+    RequestActor,
+    Depends(require_permissions("documents.update")),
+]
+RequireDocumentDelete = Annotated[
+    RequestActor,
+    Depends(require_permissions("documents.delete")),
+]
+RequireDocumentReindex = Annotated[
+    RequestActor,
+    Depends(require_permissions("documents.reindex")),
+]
+
 
 def secured(*permissions: str) -> list:
     """Optional route-level permission dependencies."""

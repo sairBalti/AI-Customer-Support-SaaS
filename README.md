@@ -37,7 +37,15 @@ curl http://127.0.0.1:8000/health
 | Swagger UI | http://127.0.0.1:8000/docs |
 | ReDoc | http://127.0.0.1:8000/redoc |
 
-Default published ports: API `8000`, MySQL `3306`, Redis `6379` (override in root `.env`).
+Default published ports: API `8000`, MySQL host `3307` → container `3306`, Redis `6379`
+(override in root `.env` via `MYSQL_PORT`, `REDIS_PORT`, `API_PORT`).
+
+**Database URLs**
+
+| Runtime | `DATABASE_URL` host | Port |
+|---------|---------------------|------|
+| Backend container | `mysql` (Compose DNS) | `3306` (set by `docker-compose.yml`) |
+| Host Alembic / host API | `localhost` | `3307` (Compose published port; see `backend/.env.example`) |
 
 ## Local development (without Docker for the API)
 
@@ -53,7 +61,7 @@ python -m venv .venv
 pip install -r requirements.txt
 pip install -r requirements-dev.txt
 cp .env.example .env
-# Ensure DATABASE_URL / REDIS_URL use localhost (see .env.example)
+# Ensure DATABASE_URL / REDIS_URL use localhost (Compose MySQL → localhost:3307)
 alembic upgrade head
 uvicorn app.main:app --reload
 ```

@@ -12,13 +12,17 @@ Async SQLAlchemy 2.0 environment wired to the application:
 ## Commands (from `backend/`)
 
 ```bash
-# Ensure DATABASE_URL points at a reachable MySQL 8+ database
-# e.g. mysql+aiomysql://root:YOUR_PASSWORD@localhost:3306/ai_customer_support
+# Host tools against Compose MySQL (default publish 3307 → container 3306):
+# DATABASE_URL=mysql+aiomysql://user:password@localhost:3307/ai_customer_support
+#
+# Inside the backend container, Compose sets @mysql:3306 automatically.
+# Prefer: docker compose exec backend alembic upgrade head
 
 alembic revision --autogenerate -m "describe change"
 alembic upgrade head
 alembic downgrade -1
 alembic history
+alembic check
 ```
 
 Rules (see `docs/database/01_Design_Principles.md`):

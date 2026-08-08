@@ -27,6 +27,13 @@ from app.domain.exceptions.company import (
     CompanyOperationForbiddenError,
     CompanyValidationError,
 )
+from app.domain.exceptions.document import (
+    DocumentAccessDeniedError,
+    DocumentConflictError,
+    DocumentNotFoundError,
+    DocumentOperationForbiddenError,
+    DocumentValidationError,
+)
 from app.domain.exceptions.role import (
     RoleAccessDeniedError,
     RoleConflictError,
@@ -61,6 +68,11 @@ _DOMAIN_STATUS: dict[type[DomainError], int] = {
     RoleValidationError: status.HTTP_422_UNPROCESSABLE_CONTENT,
     RoleAccessDeniedError: status.HTTP_403_FORBIDDEN,
     RoleOperationForbiddenError: status.HTTP_403_FORBIDDEN,
+    DocumentNotFoundError: status.HTTP_404_NOT_FOUND,
+    DocumentConflictError: status.HTTP_409_CONFLICT,
+    DocumentValidationError: status.HTTP_422_UNPROCESSABLE_CONTENT,
+    DocumentAccessDeniedError: status.HTTP_403_FORBIDDEN,
+    DocumentOperationForbiddenError: status.HTTP_403_FORBIDDEN,
     InsufficientPermissionError: status.HTTP_403_FORBIDDEN,
     InvalidCredentialsError: status.HTTP_401_UNAUTHORIZED,
     TokenInvalidError: status.HTTP_401_UNAUTHORIZED,

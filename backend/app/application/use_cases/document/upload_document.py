@@ -1,3 +1,5 @@
-"""Document upload use case."""
+"""Backward-compatible re-export."""
 
-# TODO: Implement
+from app.application.use_cases.document.document_use_cases import UploadDocumentUseCase
+
+__all__ = ["UploadDocumentUseCase"]

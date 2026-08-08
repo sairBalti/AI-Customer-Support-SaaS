@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.application.context import RequestActor
 from app.application.services.auth.auth_service import AuthService
 from app.application.services.company.company_service import CompanyService
+from app.application.services.document.document_service import DocumentService
 from app.application.services.role.role_service import RoleService
 from app.application.services.user.user_service import UserService
 from app.core.config import Settings, get_settings
@@ -20,12 +21,16 @@ from app.domain.enums.company_status import CompanyStatus
 from app.domain.exceptions.auth import InsufficientPermissionError, TokenInvalidError
 from app.domain.exceptions.company import CompanyInactiveError
 from app.domain.interfaces.services.audit_logger import AuditLogger
+from app.domain.interfaces.services.object_storage import ObjectStorage
 from app.infrastructure.audit.logging_audit_logger import LoggingAuditLogger
 from app.infrastructure.database.repositories.auth_user_repository import (
     SQLAlchemyAuthUserRepository,
 )
 from app.infrastructure.database.repositories.company_repository import (
     SQLAlchemyCompanyRepository,
+)
+from app.infrastructure.database.repositories.document_repository import (
+    SQLAlchemyDocumentRepository,
 )
 from app.infrastructure.database.repositories.refresh_token_repository import (
     SQLAlchemyRefreshTokenRepository,
@@ -37,6 +42,7 @@ from app.infrastructure.database.repositories.user_repository import (
     SQLAlchemyUserRepository,
 )
 from app.infrastructure.database.session import get_db
+from app.infrastructure.storage.factory import build_object_storage
 
 _ACTIVE_COMPANY_STATUSES = frozenset({CompanyStatus.ACTIVE, CompanyStatus.TRIAL})
 
@@ -93,6 +99,28 @@ def get_role_service(
 
 
 RoleServiceDep = Annotated[RoleService, Depends(get_role_service)]
+
+
+def get_object_storage_dep(
+    settings: SettingsDep,
+) -> ObjectStorage:
+    return build_object_storage(settings)
+
+
+def get_document_service(
+    session: DbSession,
+    audit_logger: Annotated[AuditLogger, Depends(get_audit_logger)],
+    storage: Annotated[ObjectStorage, Depends(get_object_storage_dep)],
+) -> DocumentService:
+    return DocumentService(
+        documents=SQLAlchemyDocumentRepository(session),
+        companies=SQLAlchemyCompanyRepository(session),
+        storage=storage,
+        audit_logger=audit_logger,
+    )
+
+
+DocumentServiceDep = Annotated[DocumentService, Depends(get_document_service)]
 
 
 def get_auth_service(

@@ -40,8 +40,10 @@ docker compose exec backend alembic upgrade head
 curl http://127.0.0.1:8000/health
 ```
 
-Compose overrides `DATABASE_URL` / `REDIS_URL` to use Docker service names
-(`mysql`, `redis`). Local storage persists in the `backend_storage` volume.
+Compose overrides `DATABASE_URL` / `REDIS_URL` to Docker DNS (`mysql:3306`, `redis:6379`).
+`backend/.env` is for **host** tools and should use `localhost:3307` for MySQL when using
+the default Compose publish mapping (see `.env.example`). Local storage persists in the
+`backend_storage` volume.
 
 ## Local development (API on the host)
 
@@ -56,7 +58,7 @@ python -m venv .venv
 pip install -r requirements.txt
 pip install -r requirements-dev.txt
 cp .env.example .env
-# Use localhost URLs from .env.example
+# Use localhost:3307 when MySQL is the Compose service (default published port)
 alembic upgrade head
 uvicorn app.main:app --reload
 ```

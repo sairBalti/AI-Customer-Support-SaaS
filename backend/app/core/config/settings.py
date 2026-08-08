@@ -25,7 +25,7 @@ class Settings(BaseSettings):
     refresh_token_expire_days: int = 7
     password_hash_algorithm: str = "argon2"
 
-    database_url: str = "mysql+aiomysql://user:password@localhost:3306/ai_customer_support"
+    database_url: str = "mysql+aiomysql://user:password@localhost:3307/ai_customer_support"
     database_echo: bool = False
     database_pool_size: int = 5
     database_max_overflow: int = 10
