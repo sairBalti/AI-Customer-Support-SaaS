@@ -1,6 +1,6 @@
 # Backend — AI Customer Support Agent Platform
 
-Production FastAPI backend scaffolded with **Clean Architecture**.
+Production FastAPI backend with **Clean Architecture**.
 
 ## Layers
 
@@ -17,26 +17,47 @@ Dependencies point **inward** only: API → Application → Domain ← Infrastru
 
 ## Modules
 
-Authentication · Company · Knowledge Base · Chat · Ticket · Analytics · Admin · AI
+Authentication · Company · User · Role/RBAC · (Knowledge Base · Chat · Ticket · Analytics · AI — later)
 
 ## Stack
 
 - FastAPI (async)
 - SQLAlchemy 2.x + Alembic (MySQL 8+)
-- Redis, ChromaDB (dev) / Pinecone (prod)
-- Local storage (dev) / S3 or R2 (prod)
-- Gemini / OpenAI LLM clients
-- Celery (or FastAPI BackgroundTasks for MVP)
+- Redis (prepared; optional until caching/workers land)
+- Local storage (dev) / S3 or R2 (prod — later)
+- Gemini / OpenAI LLM clients (later)
+- Celery (later background-processing phase)
 
-## Getting started
+## Docker development (recommended)
+
+From the **repository root** (see root [`README.md`](../README.md)):
 
 ```bash
+cp .env.example .env
+cp backend/.env.example backend/.env
+docker compose up --build -d
+docker compose exec backend alembic upgrade head
+curl http://127.0.0.1:8000/health
+```
+
+Compose overrides `DATABASE_URL` / `REDIS_URL` to use Docker service names
+(`mysql`, `redis`). Local storage persists in the `backend_storage` volume.
+
+## Local development (API on the host)
+
+```bash
+# Optional: infrastructure only
+docker compose up -d mysql redis
+
 cd backend
 python -m venv .venv
 # Windows: .venv\Scripts\activate
 # Unix:    source .venv/bin/activate
 pip install -r requirements.txt
+pip install -r requirements-dev.txt
 cp .env.example .env
+# Use localhost URLs from .env.example
+alembic upgrade head
 uvicorn app.main:app --reload
 ```
 
@@ -47,4 +68,26 @@ uvicorn app.main:app --reload
 Database sessions are injected via `DbSession` (`app.api.deps`). The async engine
 is created lazily and never required for process startup.
 
-Business features are intentionally empty. Fill layers according to `docs/02_Architecture.md` and `docs/database/*`.
+## Migrations
+
+```bash
+# Host
+alembic upgrade head
+alembic check
+
+# Docker
+docker compose exec backend alembic upgrade head
+```
+
+## Tests and CI parity
+
+```bash
+python -m pytest
+python -m ruff check .
+python -m black --check .
+python -m isort --check-only .
+python -m mypy app
+alembic check
+```
+
+Fill remaining domains according to `docs/` when those phases begin.

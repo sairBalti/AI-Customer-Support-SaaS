@@ -1,0 +1,27 @@
+# Build context excludes — keep the image lean and secret-free.
+
+.venv
+venv
+__pycache__
+**/__pycache__
+*.py[cod]
+*$py.class
+.pytest_cache
+.mypy_cache
+.ruff_cache
+.coverage
+htmlcov
+.git
+.gitignore
+.env
+.env.*
+!.env.example
+*.md
+.chroma
+.storage
+.logs
+tests
+.vscode
+.idea
+Dockerfile
+.dockerignore
