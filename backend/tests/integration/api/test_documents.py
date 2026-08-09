@@ -123,7 +123,7 @@ async def test_upload_list_get_update_status_flow(
     upload = await api_client.post(
         "/api/v1/documents",
         headers=_auth(token),
-        files={"file": ("policy.pdf", b"%PDF-demo-content", "application/pdf")},
+        files={"file": ("policy.txt", b"Refund Policy content for indexing.", "text/plain")},
         data={"document_name": "Refund Policy", "tags": '["policy"]'},
     )
     assert upload.status_code == 201, upload.text
@@ -164,8 +164,8 @@ async def test_upload_list_get_update_status_flow(
         f"/api/v1/documents/{doc_id}/reindex",
         headers=_auth(token),
     )
-    assert reindex.status_code == 200
-    assert reindex.json()["data"]["processing_status"] == "QUEUED"
+    assert reindex.status_code == 200, reindex.text
+    assert reindex.json()["data"]["processing_status"] == "COMPLETED"
 
 
 @pytest.mark.asyncio

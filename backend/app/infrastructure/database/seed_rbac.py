@@ -79,6 +79,8 @@ async def seed_rbac(session: AsyncSession) -> dict[str, int]:
         ("documents.update", "documents", "update"),
         ("documents.delete", "documents", "delete"),
         ("documents.reindex", "documents", "reindex"),
+        ("knowledge.process", "knowledge", "process"),
+        ("knowledge.search", "knowledge", "search"),
     ]
     perms = [PermissionModel(permission_name=n, module=m, action=a) for n, m, a in perm_names]
     session.add_all(perms)
@@ -90,7 +92,7 @@ async def seed_rbac(session: AsyncSession) -> dict[str, int]:
             RolePermissionModel(role_id=role_map["SUPER_ADMIN"], permission_id=perm.permission_id)
         )
         name = perm.permission_name
-        if name.startswith(("auth.", "companies.", "users.", "roles.", "documents.")):
+        if name.startswith(("auth.", "companies.", "users.", "roles.", "documents.", "knowledge.")):
             session.add(
                 RolePermissionModel(
                     role_id=role_map["COMPANY_ADMIN"],
@@ -107,6 +109,8 @@ async def seed_rbac(session: AsyncSession) -> dict[str, int]:
             "documents.read",
             "documents.update",
             "documents.reindex",
+            "knowledge.process",
+            "knowledge.search",
         }:
             session.add(
                 RolePermissionModel(
@@ -114,7 +118,7 @@ async def seed_rbac(session: AsyncSession) -> dict[str, int]:
                     permission_id=perm.permission_id,
                 )
             )
-        if name == "documents.read":
+        if name in {"documents.read", "knowledge.search"}:
             session.add(
                 RolePermissionModel(
                     role_id=role_map["SUPPORT_AGENT"],

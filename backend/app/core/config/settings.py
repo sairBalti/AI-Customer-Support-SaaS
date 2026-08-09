@@ -40,6 +40,12 @@ class Settings(BaseSettings):
     pinecone_api_key: str = ""
     pinecone_index: str = ""
 
+    embedding_provider: str = "hashing"
+    embedding_dimension: int = 64
+    chunk_size: int = 800
+    chunk_overlap: int = 100
+    max_chunks_per_query: int = 5
+
     storage_provider: str = "local"
     local_storage_path: str = "./.storage"
     aws_access_key_id: str = ""

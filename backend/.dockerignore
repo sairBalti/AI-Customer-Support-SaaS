@@ -20,7 +20,6 @@ htmlcov
 .chroma
 .storage
 .logs
-tests
 .vscode
 .idea
 Dockerfile

@@ -13,14 +13,20 @@ WORKDIR /app
 RUN groupadd --system --gid 1000 app \
     && useradd --system --uid 1000 --gid app --create-home --home-dir /home/app app
 
-COPY requirements.txt .
+COPY requirements.txt requirements-dev.txt .
 RUN python -m pip install --upgrade pip \
-    && python -m pip install -r requirements.txt
+    && python -m pip install --retries 5 --timeout 120 -r requirements.txt \
+    && python -m pip install --retries 5 --timeout 120 -r requirements-dev.txt
 
 COPY --chown=app:app . .
 
 RUN mkdir -p /app/.storage /app/.chroma \
-    && chown -R app:app /app/.storage /app/.chroma
+        /home/app/.cache/ruff \
+        /home/app/.cache/mypy \
+    && chown -R app:app /app /home/app/.cache
+
+ENV RUFF_CACHE_DIR=/home/app/.cache/ruff \
+    MYPY_CACHE_DIR=/home/app/.cache/mypy
 
 USER app
 

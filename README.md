@@ -110,6 +110,8 @@ alembic check
 
 Tests use in-memory SQLite and do **not** require Docker MySQL.
 
+**Host** (venv with `requirements.txt` + `requirements-dev.txt`):
+
 ```bash
 cd backend
 python -m pytest
@@ -118,6 +120,16 @@ python -m black --check .
 python -m isort --check-only .
 python -m mypy app
 alembic check
+```
+
+**Docker Compose** (backend image includes `tests/` and `requirements-dev.txt`):
+
+```bash
+docker compose exec -e AUTH_HEADER_BYPASS=true backend python -m pytest
+docker compose exec backend python -m ruff check .
+docker compose exec backend python -m black --check .
+docker compose exec backend python -m isort --check-only .
+docker compose exec backend python -m mypy app
 ```
 
 GitHub Actions (`.github/workflows/backend-ci.yml`) runs the same quality gates on push/PR.
@@ -130,8 +142,10 @@ GitHub Actions (`.github/workflows/backend-ci.yml`) runs the same quality gates 
 | `redis` | `redis:7-alpine` | Cache / future background jobs (AOF volume) |
 | `backend` | build `./backend` | FastAPI API (`uvicorn app.main:app`) |
 
-Celery workers, vector DB containers, Document/RAG/AI, and the frontend are **not**
-started here; add them in later phases when those features are implemented.
+Celery workers, dedicated vector DB containers, LangGraph/chat agents, and the frontend
+are **not** started here; add them in later phases when those features are implemented.
+Local RAG uses a file-backed vector store under `CHROMA_PERSIST_DIR` inside the backend
+container (no external vector DB service required).
 
 ## Documentation
 

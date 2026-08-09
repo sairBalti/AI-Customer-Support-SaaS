@@ -45,6 +45,19 @@ Compose overrides `DATABASE_URL` / `REDIS_URL` to Docker DNS (`mysql:3306`, `red
 the default Compose publish mapping (see `.env.example`). Local storage persists in the
 `backend_storage` volume.
 
+The Compose backend image installs both `requirements.txt` and `requirements-dev.txt`, and
+includes the `tests/` tree, so quality checks can run inside the container:
+
+```bash
+docker compose exec backend alembic upgrade head
+docker compose exec backend alembic check
+docker compose exec -e AUTH_HEADER_BYPASS=true backend python -m pytest
+docker compose exec backend python -m ruff check .
+docker compose exec backend python -m black --check .
+docker compose exec backend python -m isort --check-only .
+docker compose exec backend python -m mypy app
+```
+
 ## Local development (API on the host)
 
 ```bash
@@ -83,6 +96,8 @@ docker compose exec backend alembic upgrade head
 
 ## Tests and CI parity
 
+Host (after `pip install -r requirements.txt -r requirements-dev.txt`):
+
 ```bash
 python -m pytest
 python -m ruff check .
@@ -91,5 +106,7 @@ python -m isort --check-only .
 python -m mypy app
 alembic check
 ```
+
+Docker Compose (same tools, baked into the backend image — see above).
 
 Fill remaining domains according to `docs/` when those phases begin.

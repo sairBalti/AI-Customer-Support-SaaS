@@ -81,6 +81,15 @@ RequireDocumentReindex = Annotated[
     Depends(require_permissions("documents.reindex")),
 ]
 
+RequireKnowledgeProcess = Annotated[
+    RequestActor,
+    Depends(require_permissions("knowledge.process")),
+]
+RequireKnowledgeSearch = Annotated[
+    RequestActor,
+    Depends(require_permissions("knowledge.search")),
+]
+
 
 def secured(*permissions: str) -> list:
     """Optional route-level permission dependencies."""

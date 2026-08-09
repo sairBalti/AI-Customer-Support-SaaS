@@ -13,6 +13,7 @@ from app.application.context import RequestActor
 from app.application.services.auth.auth_service import AuthService
 from app.application.services.company.company_service import CompanyService
 from app.application.services.document.document_service import DocumentService
+from app.application.services.knowledge.knowledge_service import KnowledgeService
 from app.application.services.role.role_service import RoleService
 from app.application.services.user.user_service import UserService
 from app.core.config import Settings, get_settings
@@ -21,7 +22,11 @@ from app.domain.enums.company_status import CompanyStatus
 from app.domain.exceptions.auth import InsufficientPermissionError, TokenInvalidError
 from app.domain.exceptions.company import CompanyInactiveError
 from app.domain.interfaces.services.audit_logger import AuditLogger
+from app.domain.interfaces.services.embedding_service import EmbeddingProvider
 from app.domain.interfaces.services.object_storage import ObjectStorage
+from app.domain.interfaces.services.text_chunker import TextChunker
+from app.domain.interfaces.services.text_extractor import DocumentProcessor
+from app.domain.interfaces.services.vector_store import VectorStore
 from app.infrastructure.audit.logging_audit_logger import LoggingAuditLogger
 from app.infrastructure.database.repositories.auth_user_repository import (
     SQLAlchemyAuthUserRepository,
@@ -31,6 +36,9 @@ from app.infrastructure.database.repositories.company_repository import (
 )
 from app.infrastructure.database.repositories.document_repository import (
     SQLAlchemyDocumentRepository,
+)
+from app.infrastructure.database.repositories.knowledge_chunk_repository import (
+    SQLAlchemyKnowledgeChunkRepository,
 )
 from app.infrastructure.database.repositories.refresh_token_repository import (
     SQLAlchemyRefreshTokenRepository,
@@ -42,6 +50,12 @@ from app.infrastructure.database.repositories.user_repository import (
     SQLAlchemyUserRepository,
 )
 from app.infrastructure.database.session import get_db
+from app.infrastructure.knowledge.factory import (
+    build_document_processor,
+    build_embedding_provider,
+    build_text_chunker,
+    build_vector_store,
+)
 from app.infrastructure.storage.factory import build_object_storage
 
 _ACTIVE_COMPANY_STATUSES = frozenset({CompanyStatus.ACTIVE, CompanyStatus.TRIAL})
@@ -121,6 +135,46 @@ def get_document_service(
 
 
 DocumentServiceDep = Annotated[DocumentService, Depends(get_document_service)]
+
+
+def get_document_processor_dep(settings: SettingsDep) -> DocumentProcessor:
+    return build_document_processor(settings)
+
+
+def get_text_chunker_dep(settings: SettingsDep) -> TextChunker:
+    return build_text_chunker(settings)
+
+
+def get_embedding_provider_dep(settings: SettingsDep) -> EmbeddingProvider:
+    return build_embedding_provider(settings)
+
+
+def get_vector_store_dep(settings: SettingsDep) -> VectorStore:
+    return build_vector_store(settings)
+
+
+def get_knowledge_service(
+    session: DbSession,
+    audit_logger: Annotated[AuditLogger, Depends(get_audit_logger)],
+    storage: Annotated[ObjectStorage, Depends(get_object_storage_dep)],
+    processor: Annotated[DocumentProcessor, Depends(get_document_processor_dep)],
+    chunker: Annotated[TextChunker, Depends(get_text_chunker_dep)],
+    embeddings: Annotated[EmbeddingProvider, Depends(get_embedding_provider_dep)],
+    vectors: Annotated[VectorStore, Depends(get_vector_store_dep)],
+) -> KnowledgeService:
+    return KnowledgeService(
+        documents=SQLAlchemyDocumentRepository(session),
+        chunks=SQLAlchemyKnowledgeChunkRepository(session),
+        storage=storage,
+        processor=processor,
+        chunker=chunker,
+        embeddings=embeddings,
+        vectors=vectors,
+        audit_logger=audit_logger,
+    )
+
+
+KnowledgeServiceDep = Annotated[KnowledgeService, Depends(get_knowledge_service)]
 
 
 def get_auth_service(

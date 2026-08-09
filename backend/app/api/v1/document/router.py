@@ -7,13 +7,14 @@ from typing import Annotated, Any
 
 from fastapi import APIRouter, File, Form, Path, Query, UploadFile, status
 
-from app.api.deps import DbSession, DocumentServiceDep
+from app.api.deps import DbSession, DocumentServiceDep, KnowledgeServiceDep
 from app.api.security import (
     RequireDocumentDelete,
     RequireDocumentRead,
     RequireDocumentReindex,
     RequireDocumentUpdate,
     RequireDocumentUpload,
+    RequireKnowledgeProcess,
 )
 from app.api.v1.document.schemas import (
     DocumentResponse,
@@ -30,12 +31,15 @@ from app.application.use_cases.document import (
     GetDocumentStatusUseCase,
     GetDocumentUseCase,
     ListDocumentsUseCase,
-    ReindexDocumentUseCase,
     RestoreDocumentUseCase,
-    SoftDeleteDocumentUseCase,
     StorageUsageUseCase,
     UpdateDocumentUseCase,
     UploadDocumentUseCase,
+)
+from app.application.use_cases.knowledge import (
+    ProcessDocumentUseCase,
+    ReindexKnowledgeDocumentUseCase,
+    SoftDeleteDocumentWithDeindexUseCase,
 )
 from app.core.pagination import Page
 from app.core.responses.envelopes import success_envelope
@@ -269,9 +273,13 @@ async def delete_document(
     document_id: Annotated[int, Path(ge=1)],
     session: DbSession,
     service: DocumentServiceDep,
+    knowledge: KnowledgeServiceDep,
     actor: RequireDocumentDelete,
 ) -> dict[str, Any]:
-    document = await SoftDeleteDocumentUseCase(session, service).execute(document_id, actor)
+    document = await SoftDeleteDocumentWithDeindexUseCase(session, service, knowledge).execute(
+        document_id,
+        actor,
+    )
     return success_envelope(_to_response(document), message="Document deleted.")
 
 
@@ -291,19 +299,38 @@ async def restore_document(
 
 
 @router.post(
-    "/{document_id}/reindex",
-    summary="Queue document for reindexing",
+    "/{document_id}/process",
+    summary="Process document for knowledge base",
     description=(
-        "Marks the document as QUEUED for a future RAG/indexing worker. "
-        "Does not extract text, embed, or write to a vector store."
+        "Synchronously extract text, chunk, embed (provider-agnostic), and upsert vectors. "
+        "Does not invoke LangGraph or customer chat."
     ),
+    responses=_AUTH_RESPONSES,
+)
+async def process_document(
+    document_id: Annotated[int, Path(ge=1)],
+    session: DbSession,
+    knowledge: KnowledgeServiceDep,
+    actor: RequireKnowledgeProcess,
+) -> dict[str, Any]:
+    document = await ProcessDocumentUseCase(session, knowledge).execute(document_id, actor)
+    return success_envelope(_to_response(document), message="Document processed.")
+
+
+@router.post(
+    "/{document_id}/reindex",
+    summary="Reindex document knowledge",
+    description=("Idempotently clears prior chunks/vectors and re-runs the knowledge pipeline."),
     responses=_AUTH_RESPONSES,
 )
 async def reindex_document(
     document_id: Annotated[int, Path(ge=1)],
     session: DbSession,
-    service: DocumentServiceDep,
+    knowledge: KnowledgeServiceDep,
     actor: RequireDocumentReindex,
 ) -> dict[str, Any]:
-    document = await ReindexDocumentUseCase(session, service).execute(document_id, actor)
-    return success_envelope(_to_response(document), message="Document queued for reindex.")
+    document = await ReindexKnowledgeDocumentUseCase(session, knowledge).execute(
+        document_id,
+        actor,
+    )
+    return success_envelope(_to_response(document), message="Document reindexed.")

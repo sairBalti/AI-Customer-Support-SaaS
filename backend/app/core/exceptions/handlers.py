@@ -34,6 +34,13 @@ from app.domain.exceptions.document import (
     DocumentOperationForbiddenError,
     DocumentValidationError,
 )
+from app.domain.exceptions.knowledge import (
+    KnowledgeAccessDeniedError,
+    KnowledgeNotFoundError,
+    KnowledgeOperationForbiddenError,
+    KnowledgeProcessingError,
+    KnowledgeValidationError,
+)
 from app.domain.exceptions.role import (
     RoleAccessDeniedError,
     RoleConflictError,
@@ -73,6 +80,11 @@ _DOMAIN_STATUS: dict[type[DomainError], int] = {
     DocumentValidationError: status.HTTP_422_UNPROCESSABLE_CONTENT,
     DocumentAccessDeniedError: status.HTTP_403_FORBIDDEN,
     DocumentOperationForbiddenError: status.HTTP_403_FORBIDDEN,
+    KnowledgeNotFoundError: status.HTTP_404_NOT_FOUND,
+    KnowledgeValidationError: status.HTTP_422_UNPROCESSABLE_CONTENT,
+    KnowledgeAccessDeniedError: status.HTTP_403_FORBIDDEN,
+    KnowledgeOperationForbiddenError: status.HTTP_403_FORBIDDEN,
+    KnowledgeProcessingError: status.HTTP_422_UNPROCESSABLE_CONTENT,
     InsufficientPermissionError: status.HTTP_403_FORBIDDEN,
     InvalidCredentialsError: status.HTTP_401_UNAUTHORIZED,
     TokenInvalidError: status.HTTP_401_UNAUTHORIZED,
