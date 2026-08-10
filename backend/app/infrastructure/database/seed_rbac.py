@@ -89,6 +89,7 @@ async def seed_rbac(session: AsyncSession) -> dict[str, int]:
         ("tickets.assign", "tickets", "assign"),
         ("tickets.resolve", "tickets", "resolve"),
         ("tickets.close", "tickets", "close"),
+        ("audit.read", "audit", "read"),
     ]
     perms = [PermissionModel(permission_name=n, module=m, action=a) for n, m, a in perm_names]
     session.add_all(perms)
@@ -110,6 +111,7 @@ async def seed_rbac(session: AsyncSession) -> dict[str, int]:
                 "knowledge.",
                 "chat.",
                 "tickets.",
+                "audit.",
             )
         ):
             session.add(
@@ -138,6 +140,7 @@ async def seed_rbac(session: AsyncSession) -> dict[str, int]:
             "tickets.assign",
             "tickets.resolve",
             "tickets.close",
+            "audit.read",
         }:
             session.add(
                 RolePermissionModel(

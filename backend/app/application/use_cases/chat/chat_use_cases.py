@@ -27,8 +27,8 @@ class CreateConversationUseCase:
     ) -> ChatSession:
         try:
             result = await self._chat.create_conversation(data, actor)
-            await self._db.commit()
             await self._chat.flush_audits()
+            await self._db.commit()
             return result
         except Exception:
             self._chat.discard_audits()
@@ -77,8 +77,8 @@ class SendChatMessageUseCase:
     ) -> ChatAnswerResult:
         try:
             result = await self._chat.send_message(conversation_id, data, actor)
-            await self._db.commit()
             await self._chat.flush_audits()
+            await self._db.commit()
             return result
         except Exception:
             self._chat.discard_audits()

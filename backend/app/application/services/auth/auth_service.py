@@ -176,17 +176,22 @@ class AuthService:
         revoke_all: bool = False,
     ) -> None:
         now = datetime.now(UTC)
+        company_id: int | None = None
         if revoke_all and user_id is not None:
             await self._refresh_tokens.revoke_all_for_user(user_id, at=now)
+            user = await self._users.get_by_id(user_id)
+            if user is not None:
+                company_id = user.company_id
         elif refresh_token:
             stored = await self._refresh_tokens.get_by_hash(self.hash_refresh_token(refresh_token))
             if stored is not None and not stored.is_revoked:
                 await self._refresh_tokens.revoke(stored.token_id, at=now)
                 user_id = stored.user_id
+                company_id = stored.company_id
         self._queue_audit(
             action="USER_LOGOUT",
             user_id=user_id,
-            company_id=None,
+            company_id=company_id,
             metadata={"revoke_all": revoke_all},
         )
 

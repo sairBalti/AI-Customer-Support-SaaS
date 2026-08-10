@@ -18,12 +18,12 @@ class _Mutating:
     async def _run(self, coro) -> Role:
         try:
             result = await coro
+            await self._service.flush_audits()
             await self._session.commit()
         except Exception:
             self._service.discard_audits()
             await self._session.rollback()
             raise
-        await self._service.flush_audits()
         return result
 
 

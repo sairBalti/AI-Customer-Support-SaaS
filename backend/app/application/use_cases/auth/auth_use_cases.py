@@ -29,17 +29,17 @@ class LoginUseCase:
                 ip_address=ip_address,
                 user_agent=user_agent,
             )
+            await self._service.flush_audits()
             await self._session.commit()
         except InvalidCredentialsError:
             # Persist failed-attempt / lockout updates, then surface 401.
-            await self._session.commit()
             await self._service.flush_audits()
+            await self._session.commit()
             raise
         except Exception:
             self._service.discard_audits()
             await self._session.rollback()
             raise
-        await self._service.flush_audits()
         return session
 
 
@@ -61,12 +61,12 @@ class RefreshTokenUseCase:
                 ip_address=ip_address,
                 user_agent=user_agent,
             )
+            await self._service.flush_audits()
             await self._session.commit()
         except Exception:
             self._service.discard_audits()
             await self._session.rollback()
             raise
-        await self._service.flush_audits()
         return session
 
 
@@ -88,12 +88,12 @@ class LogoutUseCase:
                 user_id=user_id,
                 revoke_all=revoke_all,
             )
+            await self._service.flush_audits()
             await self._session.commit()
         except Exception:
             self._service.discard_audits()
             await self._session.rollback()
             raise
-        await self._service.flush_audits()
 
 
 class GetCurrentUserUseCase:

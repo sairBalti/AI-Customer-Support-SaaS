@@ -23,10 +23,10 @@ class UpdateCompanyUseCase:
     ) -> Company:
         try:
             company = await self._service.update_company(company_id, data, actor)
+            await self._service.flush_audits()
             await self._session.commit()
         except Exception:
             self._service.discard_audits()
             await self._session.rollback()
             raise
-        await self._service.flush_audits()
         return company

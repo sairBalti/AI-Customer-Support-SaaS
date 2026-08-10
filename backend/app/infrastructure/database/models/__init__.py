@@ -1,5 +1,6 @@
 """SQLAlchemy ORM models package."""
 
+from app.infrastructure.database.models.audit_log import AuditLogModel
 from app.infrastructure.database.models.auth import (
     PermissionModel,
     RefreshTokenModel,
@@ -15,6 +16,7 @@ from app.infrastructure.database.models.knowledge_chunk import KnowledgeChunkMod
 from app.infrastructure.database.models.ticket import TicketModel
 
 __all__ = [
+    "AuditLogModel",
     "CompanyModel",
     "DocumentModel",
     "KnowledgeChunkModel",

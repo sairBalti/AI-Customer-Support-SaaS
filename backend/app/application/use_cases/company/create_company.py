@@ -20,10 +20,10 @@ class CreateCompanyUseCase:
     async def execute(self, data: CreateCompanyInput, actor: RequestActor) -> Company:
         try:
             company = await self._service.create_company(data, actor)
+            await self._service.flush_audits()
             await self._session.commit()
         except Exception:
             self._service.discard_audits()
             await self._session.rollback()
             raise
-        await self._service.flush_audits()
         return company

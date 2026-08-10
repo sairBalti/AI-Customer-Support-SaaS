@@ -1,17 +1,18 @@
-"""Structured logging audit adapter (DB audit_logs wiring comes later)."""
+"""Structured logging audit adapter."""
 
 from __future__ import annotations
 
 import logging
 from typing import Any
 
+from app.core.audit_sanitize import sanitize_audit_metadata
 from app.domain.interfaces.services.audit_logger import AuditLogger
 
 logger = logging.getLogger("app.audit")
 
 
 class LoggingAuditLogger(AuditLogger):
-    """Best-effort audit hook that emits structured log events."""
+    """Best-effort audit hook that emits structured log events (no secrets)."""
 
     async def log(
         self,
@@ -32,7 +33,7 @@ class LoggingAuditLogger(AuditLogger):
                     "audit_entity_id": entity_id,
                     "audit_company_id": company_id,
                     "audit_user_id": user_id,
-                    "audit_metadata": metadata or {},
+                    "audit_metadata": sanitize_audit_metadata(metadata),
                 },
             )
         except Exception:  # noqa: BLE001 — audit must never break the request

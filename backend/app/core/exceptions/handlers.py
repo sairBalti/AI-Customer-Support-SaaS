@@ -8,6 +8,11 @@ from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.core.responses.envelopes import error_envelope
+from app.domain.exceptions.audit import (
+    AuditLogAccessDeniedError,
+    AuditLogNotFoundError,
+    AuditLogValidationError,
+)
 from app.domain.exceptions.auth import (
     AccountInactiveError,
     AccountLockedError,
@@ -72,6 +77,9 @@ from app.domain.exceptions.user import (
 logger = logging.getLogger(__name__)
 
 _DOMAIN_STATUS: dict[type[DomainError], int] = {
+    AuditLogNotFoundError: status.HTTP_404_NOT_FOUND,
+    AuditLogAccessDeniedError: status.HTTP_403_FORBIDDEN,
+    AuditLogValidationError: status.HTTP_422_UNPROCESSABLE_CONTENT,
     CompanyNotFoundError: status.HTTP_404_NOT_FOUND,
     CompanyConflictError: status.HTTP_409_CONFLICT,
     CompanyValidationError: status.HTTP_422_UNPROCESSABLE_CONTENT,

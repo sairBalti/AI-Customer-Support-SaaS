@@ -20,12 +20,12 @@ class ProcessDocumentUseCase:
     async def execute(self, document_id: int, actor: RequestActor) -> Document:
         try:
             result = await self._knowledge.process_document(document_id, actor)
+            await self._knowledge.flush_audits()
             await self._session.commit()
         except Exception:
             self._knowledge.discard_audits()
             await self._session.rollback()
             raise
-        await self._knowledge.flush_audits()
         return result
 
 
@@ -37,12 +37,12 @@ class ReindexKnowledgeDocumentUseCase:
     async def execute(self, document_id: int, actor: RequestActor) -> Document:
         try:
             result = await self._knowledge.reindex_document(document_id, actor)
+            await self._knowledge.flush_audits()
             await self._session.commit()
         except Exception:
             self._knowledge.discard_audits()
             await self._session.rollback()
             raise
-        await self._knowledge.flush_audits()
         return result
 
 
@@ -58,12 +58,12 @@ class SearchKnowledgeUseCase:
     ) -> list[RetrievedChunk]:
         try:
             result = await self._knowledge.search(data, actor)
+            await self._knowledge.flush_audits()
             await self._session.commit()
         except Exception:
             self._knowledge.discard_audits()
             await self._session.rollback()
             raise
-        await self._knowledge.flush_audits()
         return result
 
 
@@ -88,12 +88,12 @@ class SoftDeleteDocumentWithDeindexUseCase:
                 deleted.company_id,
                 actor,
             )
+            await self._documents.flush_audits()
+            await self._knowledge.flush_audits()
             await self._session.commit()
         except Exception:
             self._documents.discard_audits()
             self._knowledge.discard_audits()
             await self._session.rollback()
             raise
-        await self._documents.flush_audits()
-        await self._knowledge.flush_audits()
         return deleted

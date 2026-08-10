@@ -9,6 +9,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
 
+from app.api.middleware.audit_context import AuditContextMiddleware
 from app.api.middleware.auth import AuthenticationMiddleware
 from app.api.middleware.rbac import RBACMiddleware
 from app.api.router import api_v1_router, health_api_router
@@ -78,6 +79,7 @@ def create_app() -> FastAPI:
     # Last added runs first on the request path.
     application.add_middleware(RBACMiddleware)
     application.add_middleware(AuthenticationMiddleware)
+    application.add_middleware(AuditContextMiddleware)
     application.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origin_list,

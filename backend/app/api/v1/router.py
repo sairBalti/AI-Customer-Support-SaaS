@@ -4,6 +4,7 @@ from fastapi import APIRouter
 
 from app.api.v1.admin.router import router as admin_router
 from app.api.v1.analytics.router import router as analytics_router
+from app.api.v1.audit.router import router as audit_router
 from app.api.v1.auth.router import router as auth_router
 from app.api.v1.chat.router import router as chat_router
 from app.api.v1.company.router import router as company_router
@@ -22,5 +23,6 @@ api_v1_router.include_router(document_router)
 api_v1_router.include_router(knowledge_router)
 api_v1_router.include_router(chat_router)
 api_v1_router.include_router(ticket_router)
+api_v1_router.include_router(audit_router)
 api_v1_router.include_router(analytics_router)
 api_v1_router.include_router(admin_router)

@@ -10,6 +10,7 @@ from fastapi.security import HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.application.context import RequestActor
+from app.application.services.audit.audit_log_service import AuditLogService
 from app.application.services.auth.auth_service import AuthService
 from app.application.services.chat.chat_service import ChatService
 from app.application.services.company.company_service import CompanyService
@@ -30,7 +31,10 @@ from app.domain.interfaces.services.object_storage import ObjectStorage
 from app.domain.interfaces.services.text_chunker import TextChunker
 from app.domain.interfaces.services.text_extractor import DocumentProcessor
 from app.domain.interfaces.services.vector_store import VectorStore
-from app.infrastructure.audit.logging_audit_logger import LoggingAuditLogger
+from app.infrastructure.audit.database_audit_logger import CompositeAuditLogger
+from app.infrastructure.database.repositories.audit_log_repository import (
+    SQLAlchemyAuditLogRepository,
+)
 from app.infrastructure.database.repositories.auth_user_repository import (
     SQLAlchemyAuthUserRepository,
 )
@@ -82,8 +86,16 @@ SettingsDep = Annotated[Settings, Depends(get_app_settings)]
 DbSession = Annotated[AsyncSession, Depends(get_db)]
 
 
-def get_audit_logger() -> AuditLogger:
-    return LoggingAuditLogger()
+def get_audit_logger(session: DbSession) -> AuditLogger:
+    """Structured logs + persist to audit_logs on the request session."""
+    return CompositeAuditLogger(session)
+
+
+def get_audit_log_service(session: DbSession) -> AuditLogService:
+    return AuditLogService(audit_logs=SQLAlchemyAuditLogRepository(session))
+
+
+AuditLogServiceDep = Annotated[AuditLogService, Depends(get_audit_log_service)]
 
 
 def get_company_service(

@@ -25,8 +25,8 @@ class CreateTicketUseCase:
     async def execute(self, data: CreateTicketInput, actor: RequestActor) -> Ticket:
         try:
             result = await self._tickets.create_ticket(data, actor)
-            await self._db.commit()
             await self._tickets.flush_audits()
+            await self._db.commit()
             return result
         except Exception:
             self._tickets.discard_audits()
@@ -65,8 +65,8 @@ class UpdateTicketUseCase:
     ) -> Ticket:
         try:
             result = await self._tickets.update_ticket(ticket_id, data, actor)
-            await self._db.commit()
             await self._tickets.flush_audits()
+            await self._db.commit()
             return result
         except Exception:
             self._tickets.discard_audits()
@@ -87,8 +87,8 @@ class AssignTicketUseCase:
     ) -> Ticket:
         try:
             result = await self._tickets.assign_ticket(ticket_id, data, actor)
-            await self._db.commit()
             await self._tickets.flush_audits()
+            await self._db.commit()
             return result
         except Exception:
             self._tickets.discard_audits()
@@ -104,8 +104,8 @@ class ResolveTicketUseCase:
     async def execute(self, ticket_id: int, actor: RequestActor) -> Ticket:
         try:
             result = await self._tickets.resolve_ticket(ticket_id, actor)
-            await self._db.commit()
             await self._tickets.flush_audits()
+            await self._db.commit()
             return result
         except Exception:
             self._tickets.discard_audits()
@@ -121,8 +121,8 @@ class CloseTicketUseCase:
     async def execute(self, ticket_id: int, actor: RequestActor) -> Ticket:
         try:
             result = await self._tickets.close_ticket(ticket_id, actor)
-            await self._db.commit()
             await self._tickets.flush_audits()
+            await self._db.commit()
             return result
         except Exception:
             self._tickets.discard_audits()
@@ -147,8 +147,8 @@ class EscalateConversationUseCase:
                 data,
                 actor,
             )
-            await self._db.commit()
             await self._tickets.flush_audits()
+            await self._db.commit()
             return result
         except Exception:
             self._tickets.discard_audits()

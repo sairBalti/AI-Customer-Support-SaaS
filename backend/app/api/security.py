@@ -124,6 +124,11 @@ RequireTicketClose = Annotated[
     Depends(require_permissions("tickets.close")),
 ]
 
+RequireAuditRead = Annotated[
+    RequestActor,
+    Depends(require_permissions("audit.read")),
+]
+
 
 def secured(*permissions: str) -> list:
     """Optional route-level permission dependencies."""
