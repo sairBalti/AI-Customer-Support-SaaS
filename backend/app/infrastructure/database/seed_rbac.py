@@ -81,6 +81,8 @@ async def seed_rbac(session: AsyncSession) -> dict[str, int]:
         ("documents.reindex", "documents", "reindex"),
         ("knowledge.process", "knowledge", "process"),
         ("knowledge.search", "knowledge", "search"),
+        ("chat.start", "chat", "start"),
+        ("chat.read", "chat", "read"),
     ]
     perms = [PermissionModel(permission_name=n, module=m, action=a) for n, m, a in perm_names]
     session.add_all(perms)
@@ -92,7 +94,9 @@ async def seed_rbac(session: AsyncSession) -> dict[str, int]:
             RolePermissionModel(role_id=role_map["SUPER_ADMIN"], permission_id=perm.permission_id)
         )
         name = perm.permission_name
-        if name.startswith(("auth.", "companies.", "users.", "roles.", "documents.", "knowledge.")):
+        if name.startswith(
+            ("auth.", "companies.", "users.", "roles.", "documents.", "knowledge.", "chat.")
+        ):
             session.add(
                 RolePermissionModel(
                     role_id=role_map["COMPANY_ADMIN"],
@@ -111,6 +115,8 @@ async def seed_rbac(session: AsyncSession) -> dict[str, int]:
             "documents.reindex",
             "knowledge.process",
             "knowledge.search",
+            "chat.start",
+            "chat.read",
         }:
             session.add(
                 RolePermissionModel(
@@ -118,10 +124,17 @@ async def seed_rbac(session: AsyncSession) -> dict[str, int]:
                     permission_id=perm.permission_id,
                 )
             )
-        if name in {"documents.read", "knowledge.search"}:
+        if name in {"documents.read", "knowledge.search", "chat.read"}:
             session.add(
                 RolePermissionModel(
                     role_id=role_map["SUPPORT_AGENT"],
+                    permission_id=perm.permission_id,
+                )
+            )
+        if name in {"chat.start", "chat.read"}:
+            session.add(
+                RolePermissionModel(
+                    role_id=role_map["CUSTOMER"],
                     permission_id=perm.permission_id,
                 )
             )

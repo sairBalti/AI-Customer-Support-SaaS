@@ -19,6 +19,12 @@ from app.domain.exceptions.auth import (
     TokenInvalidError,
 )
 from app.domain.exceptions.base import DomainError
+from app.domain.exceptions.chat import (
+    ChatAccessDeniedError,
+    ChatNotFoundError,
+    ChatOperationForbiddenError,
+    ChatValidationError,
+)
 from app.domain.exceptions.company import (
     CompanyAccessDeniedError,
     CompanyConflictError,
@@ -85,6 +91,10 @@ _DOMAIN_STATUS: dict[type[DomainError], int] = {
     KnowledgeAccessDeniedError: status.HTTP_403_FORBIDDEN,
     KnowledgeOperationForbiddenError: status.HTTP_403_FORBIDDEN,
     KnowledgeProcessingError: status.HTTP_422_UNPROCESSABLE_CONTENT,
+    ChatNotFoundError: status.HTTP_404_NOT_FOUND,
+    ChatValidationError: status.HTTP_422_UNPROCESSABLE_CONTENT,
+    ChatAccessDeniedError: status.HTTP_403_FORBIDDEN,
+    ChatOperationForbiddenError: status.HTTP_403_FORBIDDEN,
     InsufficientPermissionError: status.HTTP_403_FORBIDDEN,
     InvalidCredentialsError: status.HTTP_401_UNAUTHORIZED,
     TokenInvalidError: status.HTTP_401_UNAUTHORIZED,

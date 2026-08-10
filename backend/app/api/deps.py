@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.application.context import RequestActor
 from app.application.services.auth.auth_service import AuthService
+from app.application.services.chat.chat_service import ChatService
 from app.application.services.company.company_service import CompanyService
 from app.application.services.document.document_service import DocumentService
 from app.application.services.knowledge.knowledge_service import KnowledgeService
@@ -23,6 +24,7 @@ from app.domain.exceptions.auth import InsufficientPermissionError, TokenInvalid
 from app.domain.exceptions.company import CompanyInactiveError
 from app.domain.interfaces.services.audit_logger import AuditLogger
 from app.domain.interfaces.services.embedding_service import EmbeddingProvider
+from app.domain.interfaces.services.llm_client import LlmClient
 from app.domain.interfaces.services.object_storage import ObjectStorage
 from app.domain.interfaces.services.text_chunker import TextChunker
 from app.domain.interfaces.services.text_extractor import DocumentProcessor
@@ -30,6 +32,12 @@ from app.domain.interfaces.services.vector_store import VectorStore
 from app.infrastructure.audit.logging_audit_logger import LoggingAuditLogger
 from app.infrastructure.database.repositories.auth_user_repository import (
     SQLAlchemyAuthUserRepository,
+)
+from app.infrastructure.database.repositories.chat_message_repository import (
+    SQLAlchemyChatMessageRepository,
+)
+from app.infrastructure.database.repositories.chat_session_repository import (
+    SQLAlchemyChatSessionRepository,
 )
 from app.infrastructure.database.repositories.company_repository import (
     SQLAlchemyCompanyRepository,
@@ -56,6 +64,7 @@ from app.infrastructure.knowledge.factory import (
     build_text_chunker,
     build_vector_store,
 )
+from app.infrastructure.llm.factory import build_llm_client
 from app.infrastructure.storage.factory import build_object_storage
 
 _ACTIVE_COMPANY_STATUSES = frozenset({CompanyStatus.ACTIVE, CompanyStatus.TRIAL})
@@ -175,6 +184,33 @@ def get_knowledge_service(
 
 
 KnowledgeServiceDep = Annotated[KnowledgeService, Depends(get_knowledge_service)]
+
+
+def get_llm_client_dep(settings: SettingsDep) -> LlmClient:
+    return build_llm_client(settings)
+
+
+def get_chat_service(
+    session: DbSession,
+    settings: SettingsDep,
+    audit_logger: Annotated[AuditLogger, Depends(get_audit_logger)],
+    embeddings: Annotated[EmbeddingProvider, Depends(get_embedding_provider_dep)],
+    vectors: Annotated[VectorStore, Depends(get_vector_store_dep)],
+    llm: Annotated[LlmClient, Depends(get_llm_client_dep)],
+) -> ChatService:
+    return ChatService(
+        sessions=SQLAlchemyChatSessionRepository(session),
+        messages=SQLAlchemyChatMessageRepository(session),
+        documents=SQLAlchemyDocumentRepository(session),
+        embeddings=embeddings,
+        vectors=vectors,
+        llm=llm,
+        audit_logger=audit_logger,
+        top_k=settings.chat_top_k,
+    )
+
+
+ChatServiceDep = Annotated[ChatService, Depends(get_chat_service)]
 
 
 def get_auth_service(

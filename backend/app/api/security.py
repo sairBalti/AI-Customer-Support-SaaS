@@ -90,6 +90,15 @@ RequireKnowledgeSearch = Annotated[
     Depends(require_permissions("knowledge.search")),
 ]
 
+RequireChatStart = Annotated[
+    RequestActor,
+    Depends(require_permissions("chat.start")),
+]
+RequireChatRead = Annotated[
+    RequestActor,
+    Depends(require_permissions("chat.read")),
+]
+
 
 def secured(*permissions: str) -> list:
     """Optional route-level permission dependencies."""

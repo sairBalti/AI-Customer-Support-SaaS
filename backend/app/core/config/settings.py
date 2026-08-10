@@ -53,9 +53,11 @@ class Settings(BaseSettings):
     aws_s3_bucket: str = ""
     aws_region: str = ""
 
-    llm_provider: str = "gemini"
+    llm_provider: str = "fake"
+    llm_model: str = "fake-v1"
     gemini_api_key: str = ""
     openai_api_key: str = ""
+    chat_top_k: int = 5
 
     rate_limit_per_minute: int = 100
     cors_origins: str = "http://localhost:5173"
