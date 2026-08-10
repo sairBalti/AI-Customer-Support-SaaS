@@ -1,3 +1,5 @@
-"""Escalate conversation to ticket use case."""
+"""Compatibility export."""
 
-# TODO: Implement
+from app.application.use_cases.ticket.ticket_use_cases import EscalateConversationUseCase
+
+__all__ = ["EscalateConversationUseCase"]

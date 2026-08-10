@@ -6,8 +6,8 @@ from typing import Any
 
 from fastapi import APIRouter, Query
 
-from app.api.deps import ChatServiceDep, DbSession
-from app.api.security import RequireChatRead, RequireChatStart
+from app.api.deps import ChatServiceDep, DbSession, TicketServiceDep
+from app.api.security import RequireChatRead, RequireChatStart, RequireTicketCreate
 from app.api.v1.chat.schemas import (
     ChatMessageResponse,
     ChatSourceResponse,
@@ -16,16 +16,20 @@ from app.api.v1.chat.schemas import (
     SendMessageRequest,
     SendMessageResponse,
 )
+from app.api.v1.ticket.schemas import EscalateConversationRequest, TicketResponse
 from app.application.dto.chat import CreateConversationInput, SendChatMessageInput
+from app.application.dto.ticket import EscalateConversationInput
 from app.application.use_cases.chat import (
     CreateConversationUseCase,
     GetConversationUseCase,
     ListConversationsUseCase,
     SendChatMessageUseCase,
 )
+from app.application.use_cases.ticket import EscalateConversationUseCase
 from app.core.responses.envelopes import success_envelope
 from app.domain.entities.chat_message import ChatMessage
 from app.domain.entities.chat_session import ChatSession
+from app.domain.entities.ticket import Ticket
 
 router = APIRouter(prefix="/chat", tags=["Chat"])
 
@@ -162,3 +166,52 @@ async def send_message(
         ),
     )
     return success_envelope(payload.model_dump(mode="json"))
+
+
+def _ticket_payload(ticket: Ticket) -> dict[str, Any]:
+    return TicketResponse(
+        ticket_id=ticket.ticket_id,
+        ticket_number=ticket.ticket_number,
+        company_id=ticket.company_id,
+        customer_id=ticket.customer_id,
+        conversation_id=ticket.conversation_id,
+        source_message_id=ticket.source_message_id,
+        assigned_to=ticket.assigned_to,
+        subject=ticket.subject,
+        description=ticket.description,
+        status=ticket.status,
+        priority=ticket.priority,
+        category=ticket.category,
+        source=ticket.source.value,
+        resolved_at=ticket.resolved_at,
+        closed_at=ticket.closed_at,
+        created_at=ticket.created_at,
+        updated_at=ticket.updated_at,
+    ).model_dump(mode="json")
+
+
+@router.post(
+    "/conversations/{conversation_id}/ticket",
+    summary="Escalate conversation to a support ticket",
+    status_code=201,
+    responses=_AUTH_RESPONSES,
+)
+async def escalate_conversation_to_ticket(
+    conversation_id: int,
+    body: EscalateConversationRequest,
+    session: DbSession,
+    service: TicketServiceDep,
+    actor: RequireTicketCreate,
+) -> dict[str, Any]:
+    ticket = await EscalateConversationUseCase(session, service).execute(
+        conversation_id,
+        EscalateConversationInput(
+            subject=body.subject,
+            description=body.description,
+            priority=body.priority,
+            category=body.category,
+            source_message_id=body.source_message_id,
+        ),
+        actor,
+    )
+    return success_envelope(_ticket_payload(ticket), message="Conversation escalated.")

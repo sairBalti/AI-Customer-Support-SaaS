@@ -83,6 +83,12 @@ async def seed_rbac(session: AsyncSession) -> dict[str, int]:
         ("knowledge.search", "knowledge", "search"),
         ("chat.start", "chat", "start"),
         ("chat.read", "chat", "read"),
+        ("tickets.create", "tickets", "create"),
+        ("tickets.read", "tickets", "read"),
+        ("tickets.update", "tickets", "update"),
+        ("tickets.assign", "tickets", "assign"),
+        ("tickets.resolve", "tickets", "resolve"),
+        ("tickets.close", "tickets", "close"),
     ]
     perms = [PermissionModel(permission_name=n, module=m, action=a) for n, m, a in perm_names]
     session.add_all(perms)
@@ -95,7 +101,16 @@ async def seed_rbac(session: AsyncSession) -> dict[str, int]:
         )
         name = perm.permission_name
         if name.startswith(
-            ("auth.", "companies.", "users.", "roles.", "documents.", "knowledge.", "chat.")
+            (
+                "auth.",
+                "companies.",
+                "users.",
+                "roles.",
+                "documents.",
+                "knowledge.",
+                "chat.",
+                "tickets.",
+            )
         ):
             session.add(
                 RolePermissionModel(
@@ -117,6 +132,12 @@ async def seed_rbac(session: AsyncSession) -> dict[str, int]:
             "knowledge.search",
             "chat.start",
             "chat.read",
+            "tickets.create",
+            "tickets.read",
+            "tickets.update",
+            "tickets.assign",
+            "tickets.resolve",
+            "tickets.close",
         }:
             session.add(
                 RolePermissionModel(
@@ -124,14 +145,22 @@ async def seed_rbac(session: AsyncSession) -> dict[str, int]:
                     permission_id=perm.permission_id,
                 )
             )
-        if name in {"documents.read", "knowledge.search", "chat.read"}:
+        if name in {
+            "documents.read",
+            "knowledge.search",
+            "chat.read",
+            "tickets.create",
+            "tickets.read",
+            "tickets.update",
+            "tickets.resolve",
+        }:
             session.add(
                 RolePermissionModel(
                     role_id=role_map["SUPPORT_AGENT"],
                     permission_id=perm.permission_id,
                 )
             )
-        if name in {"chat.start", "chat.read"}:
+        if name in {"chat.start", "chat.read", "tickets.create", "tickets.read"}:
             session.add(
                 RolePermissionModel(
                     role_id=role_map["CUSTOMER"],

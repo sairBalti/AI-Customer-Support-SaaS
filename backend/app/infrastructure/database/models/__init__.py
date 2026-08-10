@@ -12,6 +12,7 @@ from app.infrastructure.database.models.chat_session import ChatSessionModel
 from app.infrastructure.database.models.company import CompanyModel
 from app.infrastructure.database.models.document import DocumentModel
 from app.infrastructure.database.models.knowledge_chunk import KnowledgeChunkModel
+from app.infrastructure.database.models.ticket import TicketModel
 
 __all__ = [
     "CompanyModel",
@@ -19,6 +20,7 @@ __all__ = [
     "KnowledgeChunkModel",
     "ChatSessionModel",
     "ChatMessageModel",
+    "TicketModel",
     "RoleModel",
     "PermissionModel",
     "RolePermissionModel",

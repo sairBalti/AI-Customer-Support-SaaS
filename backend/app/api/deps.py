@@ -16,6 +16,7 @@ from app.application.services.company.company_service import CompanyService
 from app.application.services.document.document_service import DocumentService
 from app.application.services.knowledge.knowledge_service import KnowledgeService
 from app.application.services.role.role_service import RoleService
+from app.application.services.ticket.ticket_service import TicketService
 from app.application.services.user.user_service import UserService
 from app.core.config import Settings, get_settings
 from app.core.security.http import bearer_scheme
@@ -53,6 +54,9 @@ from app.infrastructure.database.repositories.refresh_token_repository import (
 )
 from app.infrastructure.database.repositories.role_repository import (
     SQLAlchemyRoleRepository,
+)
+from app.infrastructure.database.repositories.ticket_repository import (
+    SQLAlchemyTicketRepository,
 )
 from app.infrastructure.database.repositories.user_repository import (
     SQLAlchemyUserRepository,
@@ -211,6 +215,22 @@ def get_chat_service(
 
 
 ChatServiceDep = Annotated[ChatService, Depends(get_chat_service)]
+
+
+def get_ticket_service(
+    session: DbSession,
+    audit_logger: Annotated[AuditLogger, Depends(get_audit_logger)],
+) -> TicketService:
+    return TicketService(
+        tickets=SQLAlchemyTicketRepository(session),
+        users=SQLAlchemyUserRepository(session),
+        sessions=SQLAlchemyChatSessionRepository(session),
+        messages=SQLAlchemyChatMessageRepository(session),
+        audit_logger=audit_logger,
+    )
+
+
+TicketServiceDep = Annotated[TicketService, Depends(get_ticket_service)]
 
 
 def get_auth_service(

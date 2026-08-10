@@ -99,6 +99,31 @@ RequireChatRead = Annotated[
     Depends(require_permissions("chat.read")),
 ]
 
+RequireTicketCreate = Annotated[
+    RequestActor,
+    Depends(require_permissions("tickets.create")),
+]
+RequireTicketRead = Annotated[
+    RequestActor,
+    Depends(require_permissions("tickets.read")),
+]
+RequireTicketUpdate = Annotated[
+    RequestActor,
+    Depends(require_permissions("tickets.update")),
+]
+RequireTicketAssign = Annotated[
+    RequestActor,
+    Depends(require_permissions("tickets.assign")),
+]
+RequireTicketResolve = Annotated[
+    RequestActor,
+    Depends(require_permissions("tickets.resolve")),
+]
+RequireTicketClose = Annotated[
+    RequestActor,
+    Depends(require_permissions("tickets.close")),
+]
+
 
 def secured(*permissions: str) -> list:
     """Optional route-level permission dependencies."""

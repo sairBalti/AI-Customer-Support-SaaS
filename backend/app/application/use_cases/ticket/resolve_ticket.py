@@ -1,3 +1,5 @@
-"""Resolve ticket use case."""
+"""Compatibility export."""
 
-# TODO: Implement
+from app.application.use_cases.ticket.ticket_use_cases import ResolveTicketUseCase
+
+__all__ = ["ResolveTicketUseCase"]

@@ -54,6 +54,13 @@ from app.domain.exceptions.role import (
     RoleOperationForbiddenError,
     RoleValidationError,
 )
+from app.domain.exceptions.ticket import (
+    TicketAccessDeniedError,
+    TicketConflictError,
+    TicketNotFoundError,
+    TicketOperationForbiddenError,
+    TicketValidationError,
+)
 from app.domain.exceptions.user import (
     UserAccessDeniedError,
     UserConflictError,
@@ -95,6 +102,11 @@ _DOMAIN_STATUS: dict[type[DomainError], int] = {
     ChatValidationError: status.HTTP_422_UNPROCESSABLE_CONTENT,
     ChatAccessDeniedError: status.HTTP_403_FORBIDDEN,
     ChatOperationForbiddenError: status.HTTP_403_FORBIDDEN,
+    TicketNotFoundError: status.HTTP_404_NOT_FOUND,
+    TicketValidationError: status.HTTP_422_UNPROCESSABLE_CONTENT,
+    TicketAccessDeniedError: status.HTTP_403_FORBIDDEN,
+    TicketOperationForbiddenError: status.HTTP_403_FORBIDDEN,
+    TicketConflictError: status.HTTP_409_CONFLICT,
     InsufficientPermissionError: status.HTTP_403_FORBIDDEN,
     InvalidCredentialsError: status.HTTP_401_UNAUTHORIZED,
     TokenInvalidError: status.HTTP_401_UNAUTHORIZED,

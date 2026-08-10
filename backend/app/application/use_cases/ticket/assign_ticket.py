@@ -1,3 +1,5 @@
-"""Assign ticket to agent use case."""
+"""Compatibility export."""
 
-# TODO: Implement
+from app.application.use_cases.ticket.ticket_use_cases import AssignTicketUseCase
+
+__all__ = ["AssignTicketUseCase"]
