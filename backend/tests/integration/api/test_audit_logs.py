@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 import pytest
 from httpx import AsyncClient
 from sqlalchemy import select
@@ -267,7 +269,24 @@ async def test_company_ops_emit_audit_and_isolation(
         f"/api/v1/audit-logs/{b_row.audit_log_id}",
         headers=_auth(admin_a),
     )
-    assert denied.status_code == 403
+    assert denied.status_code == 404
+    # Response must not reveal whether the foreign ID exists.
+    assert denied.json()["error"]["code"] == "AUDIT_LOG_NOT_FOUND"
+
+    missing = await api_client.get(
+        "/api/v1/audit-logs/99999999",
+        headers=_auth(admin_a),
+    )
+    assert missing.status_code == 404
+    assert missing.json()["error"]["code"] == "AUDIT_LOG_NOT_FOUND"
+
+    # Tenant cannot filter by another company's id via query param
+    bypass = await api_client.get(
+        "/api/v1/audit-logs",
+        headers=_auth(admin_a),
+        params={"company_id": audit_seed["company_b_id"]},
+    )
+    assert bypass.status_code == 403
 
     allowed_b = await api_client.get(
         f"/api/v1/audit-logs/{b_row.audit_log_id}",
@@ -276,6 +295,14 @@ async def test_company_ops_emit_audit_and_isolation(
     assert allowed_b.status_code == 200
     assert allowed_b.json()["data"]["company_id"] == audit_seed["company_b_id"]
     assert allowed_b.json()["data"]["audit_uuid"] == "11111111-1111-1111-1111-111111111111"
+
+    # Super Admin can read foreign-company row by id
+    sa_get = await api_client.get(
+        f"/api/v1/audit-logs/{b_row.audit_log_id}",
+        headers=_auth(super_tok),
+    )
+    assert sa_get.status_code == 200
+    assert sa_get.json()["data"]["company_id"] == audit_seed["company_b_id"]
 
     # Listing as A must not include B rows even when filtering entity_id
     cross = await api_client.get(
@@ -427,3 +454,252 @@ async def test_document_chat_ticket_role_audits_and_no_secrets(
         assert "access_token" not in lowered
         assert "refresh_token" not in lowered
         assert "api_key" not in lowered
+
+
+@pytest.mark.asyncio
+async def test_auth_login_failed_refresh_logout_audits(
+    api_client: AsyncClient,
+    audit_seed: dict,
+    db_session: AsyncSession,
+) -> None:
+    email = audit_seed["emails"]["admin_a"]
+    password = audit_seed["password"]
+
+    failed = await api_client.post(
+        "/api/v1/auth/login",
+        json={"email": email, "password": "WrongPassword!!"},
+    )
+    assert failed.status_code == 401
+
+    login = await _login(api_client, email, password)
+    access = login["tokens"]["access_token"]
+    refresh = login["tokens"]["refresh_token"]
+
+    refreshed = await api_client.post(
+        "/api/v1/auth/refresh",
+        json={"refresh_token": refresh},
+    )
+    assert refreshed.status_code == 200, refreshed.text
+    new_refresh = refreshed.json()["data"]["tokens"]["refresh_token"]
+
+    logout = await api_client.post(
+        "/api/v1/auth/logout",
+        headers=_auth(access),
+        json={"refresh_token": new_refresh},
+    )
+    assert logout.status_code == 200, logout.text
+
+    rows = (
+        (
+            await db_session.execute(
+                select(AuditLogModel).where(AuditLogModel.company_id == audit_seed["company_a_id"])
+            )
+        )
+        .scalars()
+        .all()
+    )
+    actions = {r.action for r in rows}
+    assert "USER_LOGIN_FAILED" in actions
+    assert "USER_LOGIN" in actions
+    assert "TOKEN_REFRESHED" in actions
+    assert "USER_LOGOUT" in actions
+
+    for row in rows:
+        if row.action == "TOKEN_REFRESHED":
+            assert "token_id" in (row.metadata_ or {})
+            assert "refresh_token" not in (row.metadata_ or {})
+            assert "access_token" not in (row.metadata_ or {})
+
+
+@pytest.mark.asyncio
+async def test_ticket_update_and_escalate_audits(
+    api_client: AsyncClient,
+    audit_seed: dict,
+    db_session: AsyncSession,
+) -> None:
+    admin = await _token(api_client, audit_seed["emails"]["admin_a"], audit_seed["password"])
+    cust = await _token(api_client, audit_seed["emails"]["cust_a"], audit_seed["password"])
+
+    ticket = await api_client.post(
+        "/api/v1/tickets",
+        headers=_auth(cust),
+        json={
+            "subject": "Update me",
+            "description": "desc",
+            "priority": "LOW",
+            "category": "ACCOUNT",
+        },
+    )
+    assert ticket.status_code == 201, ticket.text
+    ticket_id = ticket.json()["data"]["ticket_id"]
+
+    updated = await api_client.patch(
+        f"/api/v1/tickets/{ticket_id}",
+        headers=_auth(admin),
+        json={"priority": "HIGH"},
+    )
+    assert updated.status_code == 200, updated.text
+
+    conv = await api_client.post(
+        "/api/v1/chat/conversations",
+        headers=_auth(cust),
+        json={"title": "Escalate path"},
+    )
+    assert conv.status_code == 201, conv.text
+    conversation_id = conv.json()["data"]["conversation_id"]
+
+    escalated = await api_client.post(
+        f"/api/v1/chat/conversations/{conversation_id}/ticket",
+        headers=_auth(cust),
+        json={
+            "subject": "Needs human",
+            "description": "from chat",
+            "priority": "MEDIUM",
+            "category": "TECHNICAL",
+        },
+    )
+    assert escalated.status_code == 201, escalated.text
+
+    actions = {
+        r.action
+        for r in (
+            await db_session.execute(
+                select(AuditLogModel).where(AuditLogModel.company_id == audit_seed["company_a_id"])
+            )
+        )
+        .scalars()
+        .all()
+    }
+    assert "tickets.update" in actions
+    assert "tickets.escalate_from_chat" in actions
+
+
+@pytest.mark.asyncio
+async def test_knowledge_process_reindex_deindex_audits(
+    api_client: AsyncClient,
+    audit_seed: dict,
+    db_session: AsyncSession,
+) -> None:
+    admin = await _token(api_client, audit_seed["emails"]["admin_a"], audit_seed["password"])
+
+    upload = await api_client.post(
+        "/api/v1/documents",
+        headers=_auth(admin),
+        files={
+            "file": (
+                "policy.txt",
+                b"Refund policy allows returns within thirty days for defective items.",
+                "text/plain",
+            )
+        },
+        data={"document_name": "Policy"},
+    )
+    assert upload.status_code == 201, upload.text
+    doc_id = upload.json()["data"]["document_id"]
+
+    processed = await api_client.post(
+        f"/api/v1/documents/{doc_id}/process",
+        headers=_auth(admin),
+    )
+    assert processed.status_code == 200, processed.text
+
+    reindexed = await api_client.post(
+        f"/api/v1/documents/{doc_id}/reindex",
+        headers=_auth(admin),
+    )
+    assert reindexed.status_code == 200, reindexed.text
+
+    deleted = await api_client.delete(
+        f"/api/v1/documents/{doc_id}",
+        headers=_auth(admin),
+    )
+    assert deleted.status_code == 200, deleted.text
+
+    actions = {
+        r.action
+        for r in (
+            await db_session.execute(
+                select(AuditLogModel).where(AuditLogModel.company_id == audit_seed["company_a_id"])
+            )
+        )
+        .scalars()
+        .all()
+    }
+    assert "knowledge.process" in actions
+    assert "knowledge.reindex" in actions
+    assert "knowledge.deindex" in actions
+    assert "document.delete" in actions
+
+
+@pytest.mark.asyncio
+async def test_fail_closed_audit_logger_blocks_company_create(
+    api_client: AsyncClient,
+    audit_seed: dict,
+    db_session: AsyncSession,
+) -> None:
+    """Override audit logger so persistence raises; create must not succeed."""
+    from app.api.deps import get_audit_logger
+    from app.domain.interfaces.services.audit_logger import AuditLogger
+
+    class Boom(AuditLogger):
+        async def log(self, **kwargs: Any) -> None:
+            if kwargs.get("company_id") is not None:
+                raise RuntimeError("forced audit failure")
+
+    app = api_client._transport.app  # type: ignore[attr-defined]  # noqa: SLF001
+    app.dependency_overrides[get_audit_logger] = lambda: Boom()
+    try:
+        before = (
+            await db_session.execute(
+                select(AuditLogModel.action).where(
+                    AuditLogModel.action == "COMPANY_CREATED",
+                )
+            )
+        ).all()
+        before_count = len(before)
+
+        before_companies = (
+            await db_session.execute(
+                select(CompanyModel).where(CompanyModel.company_slug == "boom-audit-co")
+            )
+        ).scalar_one_or_none()
+        assert before_companies is None
+
+        created_exc: Exception | None = None
+        try:
+            created = await api_client.post(
+                "/api/v1/companies",
+                json={
+                    "company_name": "Boom Audit Co",
+                    "company_slug": "boom-audit-co",
+                    "email": "boom@audit-fail.co",
+                    "timezone": "UTC",
+                },
+            )
+        except RuntimeError as exc:
+            created_exc = exc
+            created = None  # type: ignore[assignment]
+        if created is not None:
+            assert created.status_code >= 400, created.text
+        else:
+            assert created_exc is not None
+            assert "forced audit failure" in str(created_exc)
+
+        db_session.expire_all()
+        after_company = (
+            await db_session.execute(
+                select(CompanyModel).where(CompanyModel.company_slug == "boom-audit-co")
+            )
+        ).scalar_one_or_none()
+        assert after_company is None
+
+        after = (
+            await db_session.execute(
+                select(AuditLogModel.action).where(
+                    AuditLogModel.action == "COMPANY_CREATED",
+                )
+            )
+        ).all()
+        assert len(after) == before_count
+    finally:
+        app.dependency_overrides.pop(get_audit_logger, None)

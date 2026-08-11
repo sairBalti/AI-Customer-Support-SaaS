@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import logging
 import uuid
 from datetime import UTC, datetime
 from typing import Any
@@ -17,11 +16,13 @@ from app.infrastructure.database.repositories.audit_log_repository import (
     SQLAlchemyAuditLogRepository,
 )
 
-logger = logging.getLogger("app.audit")
-
 
 class DatabaseAuditLogger(AuditLogger):
-    """Persist audit events on the request AsyncSession (no separate commit)."""
+    """Persist audit events on the request AsyncSession (fail-closed).
+
+    Persistence errors propagate so the surrounding business transaction rolls
+    back. No separate commit — same session as the mutating use case.
+    """
 
     def __init__(self, session: AsyncSession) -> None:
         self._repo = SQLAlchemyAuditLogRepository(session)
@@ -45,24 +46,21 @@ class DatabaseAuditLogger(AuditLogger):
             entity_id_int = int(entity_id) if entity_id is not None else None
         except TypeError, ValueError:
             entity_id_int = None
-        try:
-            await self._repo.create(
-                {
-                    "company_id": int(company_id),
-                    "actor_user_id": user_id,
-                    "audit_uuid": str(uuid.uuid4()),
-                    "action": action,
-                    "entity_type": entity,
-                    "entity_id": entity_id_int,
-                    "description": None,
-                    "metadata": sanitize_audit_metadata(metadata),
-                    "ip_address": ctx.ip_address,
-                    "user_agent": (ctx.user_agent[:2000] if ctx.user_agent else None),
-                    "created_at": datetime.now(UTC),
-                }
-            )
-        except Exception:  # noqa: BLE001 — must not fail the business operation
-            logger.exception("Failed to persist audit event action=%s", action)
+        await self._repo.create(
+            {
+                "company_id": int(company_id),
+                "actor_user_id": user_id,
+                "audit_uuid": str(uuid.uuid4()),
+                "action": action,
+                "entity_type": entity,
+                "entity_id": entity_id_int,
+                "description": None,
+                "metadata": sanitize_audit_metadata(metadata),
+                "ip_address": ctx.ip_address,
+                "user_agent": (ctx.user_agent[:2000] if ctx.user_agent else None),
+                "created_at": datetime.now(UTC),
+            }
+        )
 
 
 class CompositeAuditLogger(AuditLogger):

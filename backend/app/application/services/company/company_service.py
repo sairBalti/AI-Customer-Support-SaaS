@@ -63,11 +63,13 @@ class CompanyService:
         self._pending_audits: list[dict[str, Any]] = []
 
     async def flush_audits(self) -> None:
-        """Emit deferred audit events after a successful commit."""
+        """Persist queued audit events on the current session before commit."""
+        if not self._pending_audits:
+            return
         events = list(self._pending_audits)
-        self._pending_audits.clear()
         for event in events:
             await self._audit.log(**event)
+        self._pending_audits.clear()
 
     def discard_audits(self) -> None:
         """Drop deferred audits after a failed transaction."""

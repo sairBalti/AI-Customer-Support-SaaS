@@ -60,7 +60,7 @@ class Settings(BaseSettings):
     chat_top_k: int = 5
 
     rate_limit_per_minute: int = 100
-    cors_origins: str = "http://localhost:5173"
+    cors_origins: str = "http://localhost:5175"
 
     # Temporary header-based auth for local/integration tests only.
     # When false (default), X-Super-Admin header cannot elevate privileges.

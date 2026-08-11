@@ -60,24 +60,13 @@ class AuditLogService:
         )
 
     async def get_log(self, audit_log_id: int, actor: RequestActor) -> AuditLog:
+        """Fetch one audit row; foreign/missing IDs both surface as not found."""
         ensure_permissions(actor, "audit.read")
         company_id = None if actor.is_super_admin else self._require_company_id(actor)
         row = await self._audit_logs.get_by_id(audit_log_id, company_id=company_id)
         if row is None:
-            other = await self._audit_logs.get_by_id(audit_log_id)
-            if other is not None and not actor.is_super_admin:
-                raise AuditLogAccessDeniedError(
-                    "Cannot access audit logs belonging to another company.",
-                )
+            # Uniform 404 — do not probe whether the ID exists in another tenant.
             raise AuditLogNotFoundError()
-        if (
-            not actor.is_super_admin
-            and actor.company_id is not None
-            and row.company_id != actor.company_id
-        ):
-            raise AuditLogAccessDeniedError(
-                "Cannot access audit logs belonging to another company.",
-            )
         return row
 
     def _resolve_company_id(

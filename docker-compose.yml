@@ -70,7 +70,9 @@ services:
       STORAGE_PROVIDER: local
       SECRET_KEY: ${SECRET_KEY:-change-me-in-production}
       AUTH_HEADER_BYPASS: ${AUTH_HEADER_BYPASS:-false}
-      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5175,http://localhost:8080}
+      LLM_PROVIDER: ${LLM_PROVIDER:-fake}
+      LLM_MODEL: ${LLM_MODEL:-fake-v1}
     ports:
       - "${API_PORT:-8000}:8000"
     volumes:
@@ -92,6 +94,20 @@ services:
       timeout: 5s
       retries: 5
       start_period: 25s
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: ""
+    container_name: acs-frontend
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-8080}:80"
+    depends_on:
+      backend:
+        condition: service_healthy
 
 volumes:
   mysql_data:

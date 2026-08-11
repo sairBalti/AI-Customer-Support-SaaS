@@ -1,0 +1,158 @@
+# Frontend Playwright E2E
+#
+# Runs against Dockerized backend + Vite frontend. Does not modify backend CI.
+# Uses Fake LLM only — no Gemini/OpenAI credentials required.
+
+name: Frontend E2E
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "frontend/**"
+      - "docker-compose.yml"
+      - ".github/workflows/frontend-e2e.yml"
+  push:
+    paths:
+      - "frontend/**"
+      - "docker-compose.yml"
+      - ".github/workflows/frontend-e2e.yml"
+
+concurrency:
+  group: frontend-e2e-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  playwright:
+    name: Playwright Chromium
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    env:
+      E2E_FRONTEND_URL: http://127.0.0.1:5175
+      E2E_API_BASE_URL: http://127.0.0.1:8000
+      E2E_SUPERADMIN_EMAIL: superadmin@platform.com
+      E2E_SUPERADMIN_PASSWORD: Str0ng!Password
+      E2E_PASSWORD: E2e!LocalPass12
+      E2E_FREE_ADMIN_EMAIL: e2e.free.admin@platform.com
+      E2E_COMPANY_SLUG: e2e-tenant
+      LLM_PROVIDER: fake
+      LLM_MODEL: fake-v1
+      CORS_ORIGINS: http://127.0.0.1:5175,http://localhost:5175
+      CI: true
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Start backend stack
+        run: |
+          docker compose up -d --build mysql redis backend
+          for i in $(seq 1 90); do
+            if curl -sf http://127.0.0.1:8000/health >/dev/null; then
+              echo "backend healthy"
+              exit 0
+            fi
+            sleep 5
+          done
+          docker compose logs backend mysql redis
+          exit 1
+
+      - name: Apply Alembic migrations
+        run: docker compose exec -T backend alembic upgrade head
+
+      - name: Seed Super Admin (idempotent)
+        run: |
+          docker compose exec -T backend python - <<'PY'
+          import asyncio
+          from sqlalchemy import text
+          from app.core.security.password import hash_password
+          from app.infrastructure.database.session import get_session_factory
+
+          async def main() -> None:
+              sf = get_session_factory()
+              async with sf() as s:
+                  email = "superadmin@platform.com"
+                  existing = (
+                      await s.execute(text("SELECT user_id FROM users WHERE email=:e"), {"e": email})
+                  ).scalar_one_or_none()
+                  if existing:
+                      print("superadmin exists", existing)
+                      return
+                  company = (
+                      await s.execute(
+                          text("SELECT company_id FROM companies WHERE company_slug='platform' LIMIT 1")
+                      )
+                  ).scalar_one_or_none()
+                  if company is None:
+                      company = (
+                          await s.execute(text("SELECT company_id FROM companies ORDER BY company_id LIMIT 1"))
+                      ).scalar_one_or_none()
+                  if company is None:
+                      await s.execute(
+                          text(
+                              """
+                              INSERT INTO companies
+                                (company_name, company_slug, email, timezone, subscription_plan,
+                                 max_users, max_documents, max_storage_mb, monthly_ai_tokens, token_usage, status)
+                              VALUES
+                                ('Platform', 'platform', 'platform@platform.com', 'UTC', 'ENTERPRISE',
+                                 100, 1000, 10000, 10000000, 0, 'ACTIVE')
+                              """
+                          )
+                      )
+                      await s.commit()
+                      company = (
+                          await s.execute(text("SELECT company_id FROM companies ORDER BY company_id LIMIT 1"))
+                      ).scalar_one()
+                  role_id = (
+                      await s.execute(text("SELECT role_id FROM roles WHERE role_name='SUPER_ADMIN' LIMIT 1"))
+                  ).scalar_one()
+                  pwd = hash_password("Str0ng!Password")
+                  await s.execute(
+                      text(
+                          """
+                          INSERT INTO users
+                            (company_id, role_id, first_name, last_name, display_name, email, password_hash,
+                             language, timezone, is_email_verified, status, must_change_password)
+                          VALUES
+                            (:cid, :rid, 'Super', 'Admin', 'Super Admin', :email, :pwd,
+                             'en', 'UTC', 1, 'ACTIVE', 0)
+                          """
+                      ),
+                      {"cid": company, "rid": role_id, "email": email, "pwd": pwd},
+                  )
+                  await s.commit()
+                  print("superadmin created")
+
+          asyncio.run(main())
+          PY
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend deps
+        working-directory: frontend
+        run: npm ci
+
+      - name: Install Playwright Chromium
+        working-directory: frontend
+        run: npx playwright install --with-deps chromium
+
+      - name: Run Playwright E2E
+        working-directory: frontend
+        run: npm run test:e2e
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            frontend/playwright-report
+            frontend/test-results
+          retention-days: 7

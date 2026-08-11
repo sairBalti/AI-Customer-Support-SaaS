@@ -63,10 +63,13 @@ class AuthService:
         self._pending_audits: list[dict[str, Any]] = []
 
     async def flush_audits(self) -> None:
+        """Persist queued audit events on the current session before commit."""
+        if not self._pending_audits:
+            return
         events = list(self._pending_audits)
-        self._pending_audits.clear()
         for event in events:
             await self._audit.log(**event)
+        self._pending_audits.clear()
 
     def discard_audits(self) -> None:
         self._pending_audits.clear()
@@ -179,15 +182,16 @@ class AuthService:
         company_id: int | None = None
         if revoke_all and user_id is not None:
             await self._refresh_tokens.revoke_all_for_user(user_id, at=now)
-            user = await self._users.get_by_id(user_id)
-            if user is not None:
-                company_id = user.company_id
         elif refresh_token:
             stored = await self._refresh_tokens.get_by_hash(self.hash_refresh_token(refresh_token))
             if stored is not None and not stored.is_revoked:
                 await self._refresh_tokens.revoke(stored.token_id, at=now)
                 user_id = stored.user_id
                 company_id = stored.company_id
+        if company_id is None and user_id is not None:
+            user = await self._users.get_by_id(user_id)
+            if user is not None:
+                company_id = user.company_id
         self._queue_audit(
             action="USER_LOGOUT",
             user_id=user_id,

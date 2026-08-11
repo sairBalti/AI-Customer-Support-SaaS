@@ -113,12 +113,14 @@ def test_sanitize_strips_secrets() -> None:
             "password_hash": "x",
             "access_token": "tok",
             "refresh_token": "rt",
+            "token": "raw",
             "api_key": "k",
             "openai_api_key": "oai",
+            "token_id": 42,
             "safe_flag": True,
         }
     )
-    assert cleaned == {"email": "a@b.co", "safe_flag": True}
+    assert cleaned == {"email": "a@b.co", "token_id": 42, "safe_flag": True}
 
 
 @pytest.mark.asyncio
@@ -233,7 +235,8 @@ async def test_tenant_isolation_list_and_get() -> None:
     with pytest.raises(AuditLogAccessDeniedError):
         await service.list_logs(AuditListQuery(company_id=20), _admin(company_id=10))
 
-    with pytest.raises(AuditLogAccessDeniedError):
+    # Foreign and missing IDs both raise NotFound (no existence probe / 403).
+    with pytest.raises(AuditLogNotFoundError):
         await service.get_log(b.audit_log_id, _admin(company_id=10))
 
     with pytest.raises(AuditLogNotFoundError):

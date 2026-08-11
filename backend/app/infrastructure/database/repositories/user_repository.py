@@ -38,6 +38,7 @@ class SQLAlchemyUserRepository(UserRepository):
         model = UserModel(**data)
         self._session.add(model)
         await self._session.flush()
+        await self._session.refresh(model)
         role_name = await self.get_role_name(int(model.role_id))
         return user_to_managed_entity(model, role_name=role_name)
 
