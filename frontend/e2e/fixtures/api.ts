@@ -170,6 +170,7 @@ async function ensureE2ECompany(env: E2EEnv, token: string): Promise<number> {
   }
 
   const created = await api<{ company_id: number }>(env, "POST", "/api/v1/companies", {
+    token,
     body: {
       company_name: "E2E Free Tenant",
       company_slug: slug,
