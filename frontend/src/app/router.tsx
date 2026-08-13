@@ -8,6 +8,7 @@ import { CompanyDetailPage } from "@/features/companies/company-detail-page";
 import { DashboardPage } from "@/features/dashboard/dashboard-page";
 import { DocumentsPage } from "@/features/documents/documents-page";
 import { KnowledgePage } from "@/features/knowledge/knowledge-page";
+import { MarketingPage } from "@/features/marketing/marketing-page";
 import { RolesPage } from "@/features/roles/roles-page";
 import { TicketDetailPage } from "@/features/tickets/ticket-detail-page";
 import { TicketsPage } from "@/features/tickets/tickets-page";
@@ -32,6 +33,8 @@ function ForbiddenPage() {
 export function AppRouter() {
   return (
     <Routes>
+      <Route path="/" element={<MarketingPage />} />
+
       <Route element={<GuestRoute />}>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterCompanyPage />} />
@@ -49,7 +52,7 @@ export function AppRouter() {
           <Route element={<ProtectedRoute permissions={["users.read"]} />}>
             <Route path="users" element={<UsersPage />} />
           </Route>
-          <Route element={<ProtectedRoute permissions={["roles.read"]} />}>
+          <Route element={<ProtectedRoute requireSuperAdmin />}>
             <Route path="roles" element={<RolesPage />} />
           </Route>
           <Route element={<ProtectedRoute permissions={["documents.read"]} />}>
@@ -75,8 +78,7 @@ export function AppRouter() {
         </Route>
       </Route>
 
-      <Route path="/" element={<Navigate to="/app" replace />} />
-      <Route path="*" element={<Navigate to="/app" replace />} />
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
 }

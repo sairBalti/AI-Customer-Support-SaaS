@@ -23,6 +23,16 @@ export async function sendMessage(conversationId: number, content: string) {
   return unwrapData<ChatAnswer>(data);
 }
 
+export async function deleteConversation(conversationId: number) {
+  const { data } = await http.delete(`/api/v1/chat/conversations/${conversationId}`);
+  return unwrapData<{ deleted: boolean }>(data);
+}
+
+export async function deleteAllConversations() {
+  const { data } = await http.delete("/api/v1/chat/conversations");
+  return unwrapData<{ deleted_count: number }>(data);
+}
+
 export async function escalateConversation(
   conversationId: number,
   payload: Record<string, unknown>,

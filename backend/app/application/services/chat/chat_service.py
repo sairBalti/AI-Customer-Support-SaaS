@@ -149,6 +149,55 @@ class ChatService:
         )
         return session, messages
 
+    async def delete_conversation(self, conversation_id: int, actor: RequestActor) -> None:
+        ensure_permissions(actor, "chat.start")
+        session = await self._load_conversation_for_actor(
+            conversation_id,
+            actor,
+            require_write=True,
+        )
+        await self._messages.delete_by_session(
+            session.session_id,
+            company_id=session.company_id,
+        )
+        deleted = await self._sessions.delete_by_id(
+            session.session_id,
+            company_id=session.company_id,
+        )
+        if not deleted:
+            raise ChatNotFoundError()
+        self._queue_audit(
+            action="chat.conversation.delete",
+            entity_id=session.session_id,
+            company_id=session.company_id,
+            user_id=actor.user_id,
+        )
+
+    async def delete_all_conversations(self, actor: RequestActor) -> int:
+        ensure_permissions(actor, "chat.start")
+        company_id = self._require_company_id(actor)
+        customer_id = actor.user_id if self._is_customer(actor) else None
+        sessions = await self._sessions.list_by_company(
+            company_id,
+            customer_id=customer_id,
+            limit=10_000,
+            offset=0,
+        )
+        for session in sessions:
+            await self._messages.delete_by_session(
+                session.session_id,
+                company_id=company_id,
+            )
+        count = await self._sessions.delete_by_company(company_id, customer_id=customer_id)
+        self._queue_audit(
+            action="chat.conversation.delete_all",
+            entity_id=0,
+            company_id=company_id,
+            user_id=actor.user_id,
+            metadata={"deleted_count": count},
+        )
+        return count
+
     async def send_message(
         self,
         conversation_id: int,

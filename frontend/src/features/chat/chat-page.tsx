@@ -3,11 +3,14 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import ReactMarkdown from "react-markdown";
+import { Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   createConversation,
+  deleteAllConversations,
+  deleteConversation,
   escalateConversation,
   getConversation,
   listConversations,
@@ -77,6 +80,9 @@ export function ChatPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [messageSources, setMessageSources] = useState<Record<number, ChatSource[]>>({});
   const [escalateOpen, setEscalateOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<
+    { type: "one"; conversationId: number; title: string } | { type: "all"; count: number } | null
+  >(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const selectedId = useMemo(() => {
@@ -185,6 +191,42 @@ export function ChatPage() {
     onError: (e) => toast.error(getErrorMessage(e)),
   });
 
+  const deleteOneMutation = useMutation({
+    mutationFn: (conversationId: number) => deleteConversation(conversationId),
+    onSuccess: (_data, conversationId) => {
+      toast.success("Conversation deleted");
+      setDeleteTarget(null);
+      qc.removeQueries({ queryKey: ["chat", "conversation", conversationId] });
+      void qc.invalidateQueries({ queryKey: ["chat", "conversations"] });
+      if (selectedId === conversationId) {
+        setSearchParams({});
+      }
+    },
+    onError: (e) => toast.error(getErrorMessage(e)),
+  });
+
+  const deleteAllMutation = useMutation({
+    mutationFn: () => deleteAllConversations(),
+    onSuccess: (result) => {
+      toast.success(`Deleted ${result.deleted_count} conversation(s)`);
+      setDeleteTarget(null);
+      void qc.invalidateQueries({ queryKey: ["chat"] });
+      setSearchParams({});
+    },
+    onError: (e) => toast.error(getErrorMessage(e)),
+  });
+
+  const deletePending = deleteOneMutation.isPending || deleteAllMutation.isPending;
+
+  function confirmDelete() {
+    if (!deleteTarget) return;
+    if (deleteTarget.type === "one") {
+      deleteOneMutation.mutate(deleteTarget.conversationId);
+      return;
+    }
+    deleteAllMutation.mutate();
+  }
+
   const conversations = conversationsQuery.data?.items ?? [];
   const messages = conversationQuery.data?.messages ?? [];
   const activeConversation = conversationQuery.data?.conversation;
@@ -207,8 +249,26 @@ export function ChatPage() {
 
       <div className="flex min-h-0 flex-1 gap-4">
         <aside className="flex w-64 shrink-0 flex-col rounded-lg border border-border bg-card">
-          <div className="border-b border-border px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            Conversations
+          <div className="flex items-center justify-between gap-2 border-b border-border px-3 py-2">
+            <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Conversations
+            </div>
+            {canStartChat && conversations.length > 0 ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                title="Delete all conversations"
+                aria-label="Delete all conversations"
+                disabled={deletePending}
+                onClick={() =>
+                  setDeleteTarget({ type: "all", count: conversations.length })
+                }
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            ) : null}
           </div>
           <div className="flex-1 overflow-y-auto p-2">
             {conversationsQuery.isLoading ? <LoadingBlock label="Loading…" /> : null}
@@ -219,24 +279,52 @@ export function ChatPage() {
               <p className="px-2 py-4 text-center text-xs text-muted-foreground">No conversations yet</p>
             ) : null}
             {conversations.map((session) => (
-              <button
+              <div
                 key={session.conversation_id}
-                type="button"
                 className={cn(
-                  "mb-1 w-full rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-muted",
+                  "group mb-1 flex items-stretch gap-1 rounded-md transition-colors",
                   selectedId === session.conversation_id && "bg-accent text-accent-foreground",
                 )}
-                onClick={() =>
-                  setSearchParams({ conversation: String(session.conversation_id) })
-                }
               >
-                <div className="truncate font-medium">
-                  {session.title ?? `Conversation #${session.conversation_id}`}
-                </div>
-                <div className="truncate text-xs text-muted-foreground">
-                  {formatDate(session.updated_at)}
-                </div>
-              </button>
+                <button
+                  type="button"
+                  className={cn(
+                    "min-w-0 flex-1 rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-muted",
+                    selectedId === session.conversation_id && "hover:bg-accent",
+                  )}
+                  onClick={() =>
+                    setSearchParams({ conversation: String(session.conversation_id) })
+                  }
+                >
+                  <div className="truncate font-medium">
+                    {session.title ?? `Conversation #${session.conversation_id}`}
+                  </div>
+                  <div className="truncate text-xs text-muted-foreground">
+                    {formatDate(session.updated_at)}
+                  </div>
+                </button>
+                {canStartChat ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="my-1 h-8 w-8 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 hover:text-destructive"
+                    title="Delete conversation"
+                    aria-label="Delete conversation"
+                    disabled={deletePending}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      setDeleteTarget({
+                        type: "one",
+                        conversationId: session.conversation_id,
+                        title: session.title ?? `Conversation #${session.conversation_id}`,
+                      });
+                    }}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                ) : null}
+              </div>
             ))}
           </div>
         </aside>
@@ -370,6 +458,53 @@ export function ChatPage() {
           )}
         </section>
       </div>
+
+      <Dialog
+        open={deleteTarget !== null}
+        onOpenChange={(open) => {
+          if (!open && !deletePending) setDeleteTarget(null);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {deleteTarget?.type === "all" ? "Delete all conversations?" : "Delete conversation?"}
+            </DialogTitle>
+            <DialogDescription>
+              {deleteTarget?.type === "all" ? (
+                <>
+                  This permanently removes all {deleteTarget.count} conversation
+                  {deleteTarget.count === 1 ? "" : "s"} and their messages. This action cannot be
+                  undone.
+                </>
+              ) : deleteTarget?.type === "one" ? (
+                <>
+                  Permanently delete <span className="font-medium">{deleteTarget.title}</span> and
+                  all of its messages? This action cannot be undone.
+                </>
+              ) : null}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              disabled={deletePending}
+              onClick={() => setDeleteTarget(null)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={deletePending}
+              onClick={confirmDelete}
+            >
+              {deletePending ? "Deleting…" : "Delete"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

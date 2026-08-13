@@ -6,16 +6,21 @@ import type { Permission } from "@/types/api";
 export function ProtectedRoute({
   permissions,
   requireAny = false,
+  requireSuperAdmin = false,
 }: {
   permissions?: Permission[];
   requireAny?: boolean;
+  requireSuperAdmin?: boolean;
 }) {
-  const { isAuthenticated, loading, can, canAny } = useAuth();
+  const { isAuthenticated, loading, can, canAny, user } = useAuth();
   const location = useLocation();
 
   if (loading) return <LoadingBlock label="Checking session…" />;
   if (!isAuthenticated) {
     return <Navigate to="/login" replace state={{ from: location.pathname }} />;
+  }
+  if (requireSuperAdmin && !user?.is_super_admin) {
+    return <Navigate to="/forbidden" replace />;
   }
   if (permissions && permissions.length > 0) {
     const allowed = requireAny ? canAny(...permissions) : can(...permissions);

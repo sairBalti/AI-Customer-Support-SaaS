@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { PasswordInput } from "@/components/ui/password-input";
 import { useAuth } from "@/hooks/use-auth";
 import { getErrorMessage } from "@/lib/api-error";
 
@@ -18,22 +19,36 @@ const schema = z.object({
 
 type FormValues = z.infer<typeof schema>;
 
+type LoginLocationState = {
+  from?: string;
+  email?: string;
+  registered?: boolean;
+  companyName?: string;
+} | null;
+
 export function LoginPage() {
   const { login } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const state = (location.state as LoginLocationState) ?? null;
   const [submitting, setSubmitting] = useState(false);
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
-    defaultValues: { email: "", password: "" },
+    defaultValues: { email: state?.email ?? "", password: "" },
   });
+
+  useEffect(() => {
+    if (state?.email) {
+      form.setValue("email", state.email);
+    }
+  }, [form, state?.email]);
 
   const onSubmit = form.handleSubmit(async (values) => {
     setSubmitting(true);
     try {
       await login(values.email, values.password);
       toast.success("Signed in");
-      const from = (location.state as { from?: string } | null)?.from || "/app";
+      const from = state?.from || "/app";
       navigate(from, { replace: true });
     } catch (error) {
       toast.error(getErrorMessage(error, "Login failed"));
@@ -54,6 +69,18 @@ export function LoginPage() {
           <CardDescription>Access your AI customer support workspace.</CardDescription>
         </CardHeader>
         <CardContent>
+          {state?.registered ? (
+            <div className="mb-4 rounded-lg border border-teal-200 bg-teal-50 px-3 py-2 text-sm text-teal-900">
+              {state.companyName ? (
+                <>
+                  <span className="font-medium">{state.companyName}</span> is ready. Sign in with the
+                  admin email and password you just created.
+                </>
+              ) : (
+                <>Your company is ready. Sign in with the admin email and password you just created.</>
+              )}
+            </div>
+          ) : null}
           <form className="space-y-4" onSubmit={onSubmit}>
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
@@ -64,9 +91,8 @@ export function LoginPage() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>
-              <Input
+              <PasswordInput
                 id="password"
-                type="password"
                 autoComplete="current-password"
                 {...form.register("password")}
               />
@@ -82,6 +108,11 @@ export function LoginPage() {
             New tenant?{" "}
             <Link className="font-medium text-teal-700 hover:underline" to="/register">
               Register a company
+            </Link>
+          </p>
+          <p className="mt-2 text-center text-sm text-muted-foreground">
+            <Link className="hover:underline" to="/">
+              ← Back to home
             </Link>
           </p>
         </CardContent>

@@ -33,3 +33,17 @@ class ChatSessionRepository(Protocol):
         *,
         company_id: int | None = None,
     ) -> ChatSession | None: ...
+
+    async def delete_by_id(
+        self,
+        session_id: int,
+        *,
+        company_id: int | None = None,
+    ) -> bool: ...
+
+    async def delete_by_company(
+        self,
+        company_id: int,
+        *,
+        customer_id: int | None = None,
+    ) -> int: ...

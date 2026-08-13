@@ -25,3 +25,10 @@ class ChatMessageRepository(Protocol):
         *,
         company_id: int | None = None,
     ) -> ChatMessage | None: ...
+
+    async def delete_by_session(
+        self,
+        session_id: int,
+        *,
+        company_id: int | None = None,
+    ) -> int: ...

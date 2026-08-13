@@ -124,7 +124,13 @@ def _auth(token: str) -> dict[str, str]:
 
 
 @pytest.mark.asyncio
-async def test_public_registration_without_token(api_client: AsyncClient) -> None:
+async def test_public_registration_without_token(
+    api_client: AsyncClient,
+    db_session: AsyncSession,
+) -> None:
+    await seed_rbac(db_session)
+    await db_session.commit()
+
     create = await api_client.post(
         "/api/v1/companies",
         json={
@@ -133,10 +139,33 @@ async def test_public_registration_without_token(api_client: AsyncClient) -> Non
             "timezone": "UTC",
             "phone": "+15551234567",
             "website": "https://acme.com",
+            "admin_password": "Str0ng!Password",
+            "admin_first_name": "Ada",
+            "admin_last_name": "Admin",
         },
     )
     assert create.status_code == 201, create.text
     assert create.json()["data"]["company_slug"] == "acme-corporation"
+
+    login = await api_client.post(
+        "/api/v1/auth/login",
+        json={"email": "admin@acme.com", "password": "Str0ng!Password"},
+    )
+    assert login.status_code == 200, login.text
+    assert login.json()["data"]["user"]["role_name"] == "COMPANY_ADMIN"
+
+
+@pytest.mark.asyncio
+async def test_public_registration_requires_admin_password(api_client: AsyncClient) -> None:
+    create = await api_client.post(
+        "/api/v1/companies",
+        json={
+            "company_name": "No Password Co",
+            "email": "ops@nopass.co",
+            "timezone": "UTC",
+        },
+    )
+    assert create.status_code == 422, create.text
 
 
 @pytest.mark.asyncio

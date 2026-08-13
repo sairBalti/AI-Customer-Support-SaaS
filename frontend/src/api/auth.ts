@@ -24,6 +24,9 @@ export async function registerCompany(payload: {
   email: string;
   company_slug?: string;
   timezone?: string;
+  admin_password: string;
+  admin_first_name: string;
+  admin_last_name: string;
 }) {
   const { data } = await http.post("/api/v1/companies", payload);
   return unwrapData(data);

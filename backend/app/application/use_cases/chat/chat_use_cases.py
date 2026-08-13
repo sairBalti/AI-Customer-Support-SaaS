@@ -84,3 +84,36 @@ class SendChatMessageUseCase:
             self._chat.discard_audits()
             await self._db.rollback()
             raise
+
+
+class DeleteConversationUseCase:
+    def __init__(self, session: AsyncSession, service: ChatService) -> None:
+        self._db = session
+        self._chat = service
+
+    async def execute(self, conversation_id: int, actor: RequestActor) -> None:
+        try:
+            await self._chat.delete_conversation(conversation_id, actor)
+            await self._chat.flush_audits()
+            await self._db.commit()
+        except Exception:
+            self._chat.discard_audits()
+            await self._db.rollback()
+            raise
+
+
+class DeleteAllConversationsUseCase:
+    def __init__(self, session: AsyncSession, service: ChatService) -> None:
+        self._db = session
+        self._chat = service
+
+    async def execute(self, actor: RequestActor) -> int:
+        try:
+            count = await self._chat.delete_all_conversations(actor)
+            await self._chat.flush_audits()
+            await self._db.commit()
+            return count
+        except Exception:
+            self._chat.discard_audits()
+            await self._db.rollback()
+            raise

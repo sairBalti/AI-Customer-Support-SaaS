@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.entities.chat_session import ChatSession
@@ -84,3 +84,27 @@ class SQLAlchemyChatSessionRepository(ChatSessionRepository):
         await self._session.flush()
         await self._session.refresh(model)
         return chat_session_to_entity(model)
+
+    async def delete_by_id(
+        self,
+        session_id: int,
+        *,
+        company_id: int | None = None,
+    ) -> bool:
+        stmt = delete(ChatSessionModel).where(ChatSessionModel.session_id == session_id)
+        if company_id is not None:
+            stmt = stmt.where(ChatSessionModel.company_id == company_id)
+        result = await self._session.execute(stmt)
+        return bool(result.rowcount)
+
+    async def delete_by_company(
+        self,
+        company_id: int,
+        *,
+        customer_id: int | None = None,
+    ) -> int:
+        stmt = delete(ChatSessionModel).where(ChatSessionModel.company_id == company_id)
+        if customer_id is not None:
+            stmt = stmt.where(ChatSessionModel.customer_id == customer_id)
+        result = await self._session.execute(stmt)
+        return int(result.rowcount or 0)

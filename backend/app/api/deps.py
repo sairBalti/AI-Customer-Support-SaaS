@@ -105,6 +105,7 @@ def get_company_service(
     return CompanyService(
         repository=SQLAlchemyCompanyRepository(session),
         audit_logger=audit_logger,
+        users=SQLAlchemyUserRepository(session),
     )
 
 

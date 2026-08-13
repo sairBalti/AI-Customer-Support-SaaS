@@ -5,6 +5,7 @@ test.describe("Users / RBAC navigation", () => {
     await asSuperAdmin.goto("/app");
     await expectNavVisible(asSuperAdmin, "Companies");
     await expectNavVisible(asSuperAdmin, "Users");
+    await expectNavVisible(asSuperAdmin, "Roles");
     await expectNavVisible(asSuperAdmin, "Documents");
     await expectNavVisible(asSuperAdmin, "Audit");
     await expectNavVisible(asSuperAdmin, "Tickets");
@@ -19,9 +20,12 @@ test.describe("Users / RBAC navigation", () => {
     await expectNavVisible(asCompanyAdmin, "Users");
     await expectNavVisible(asCompanyAdmin, "Documents");
     await expectNavVisible(asCompanyAdmin, "Audit");
+    await expectNavHidden(asCompanyAdmin, "Roles");
     await asCompanyAdmin.goto("/app/users");
     await expect(asCompanyAdmin.getByRole("heading", { name: "Users" })).toBeVisible();
     await expect(asCompanyAdmin.getByRole("button", { name: /create user/i })).toBeVisible();
+    await asCompanyAdmin.goto("/app/roles");
+    await expect(asCompanyAdmin).toHaveURL(/\/forbidden/);
     await asCompanyAdmin.goto("/app/documents");
     await expect(asCompanyAdmin.getByText(/drag and drop a file/i)).toBeVisible();
   });

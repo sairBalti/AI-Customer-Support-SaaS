@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.entities.chat_message import ChatMessage
@@ -61,3 +61,25 @@ class SQLAlchemyChatMessageRepository(ChatMessageRepository):
             stmt = stmt.where(ChatMessageModel.company_id == company_id)
         model = (await self._session.execute(stmt)).scalar_one_or_none()
         return chat_message_to_entity(model) if model else None
+
+    async def delete_by_session(
+        self,
+        session_id: int,
+        *,
+        company_id: int | None = None,
+    ) -> int:
+        # Break self-referential parent_message_id links before deleting rows.
+        clear_parents = (
+            update(ChatMessageModel)
+            .where(ChatMessageModel.session_id == session_id)
+            .values(parent_message_id=None)
+        )
+        if company_id is not None:
+            clear_parents = clear_parents.where(ChatMessageModel.company_id == company_id)
+        await self._session.execute(clear_parents)
+
+        stmt = delete(ChatMessageModel).where(ChatMessageModel.session_id == session_id)
+        if company_id is not None:
+            stmt = stmt.where(ChatMessageModel.company_id == company_id)
+        result = await self._session.execute(stmt)
+        return int(result.rowcount or 0)

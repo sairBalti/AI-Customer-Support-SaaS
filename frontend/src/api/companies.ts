@@ -6,6 +6,11 @@ export async function listCompanies(params?: Record<string, unknown>) {
   return unwrapData<Page<Company>>(data);
 }
 
+export async function createCompany(payload: Record<string, unknown>) {
+  const { data } = await http.post("/api/v1/companies", payload);
+  return unwrapData<Company>(data);
+}
+
 export async function getCompany(companyId: number) {
   const { data } = await http.get(`/api/v1/companies/${companyId}`);
   return unwrapData<Company>(data);

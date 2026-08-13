@@ -21,6 +21,8 @@ from app.application.dto.chat import CreateConversationInput, SendChatMessageInp
 from app.application.dto.ticket import EscalateConversationInput
 from app.application.use_cases.chat import (
     CreateConversationUseCase,
+    DeleteAllConversationsUseCase,
+    DeleteConversationUseCase,
     GetConversationUseCase,
     ListConversationsUseCase,
     SendChatMessageUseCase,
@@ -111,6 +113,38 @@ async def list_conversations(
         offset=offset,
     )
     return success_envelope({"items": [_conversation_payload(i) for i in items]})
+
+
+@router.delete(
+    "/conversations",
+    summary="Delete all conversations visible to the caller",
+    responses=_AUTH_RESPONSES,
+)
+async def delete_all_conversations(
+    session: DbSession,
+    service: ChatServiceDep,
+    actor: RequireChatStart,
+) -> dict[str, Any]:
+    count = await DeleteAllConversationsUseCase(session, service).execute(actor)
+    return success_envelope(
+        {"deleted_count": count},
+        message=f"Deleted {count} conversation(s).",
+    )
+
+
+@router.delete(
+    "/conversations/{conversation_id}",
+    summary="Delete a conversation and its messages",
+    responses=_AUTH_RESPONSES,
+)
+async def delete_conversation(
+    conversation_id: int,
+    session: DbSession,
+    service: ChatServiceDep,
+    actor: RequireChatStart,
+) -> dict[str, Any]:
+    await DeleteConversationUseCase(session, service).execute(conversation_id, actor)
+    return success_envelope({"deleted": True}, message="Conversation deleted.")
 
 
 @router.get(

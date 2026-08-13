@@ -24,6 +24,10 @@ class CreateCompanyInput:
     timezone: str = "UTC"
     subscription_plan: SubscriptionPlan = SubscriptionPlan.FREE
     activate_trial: bool = True
+    # Public onboarding: create Company Admin so the registrant can sign in.
+    admin_password: str | None = None
+    admin_first_name: str | None = None
+    admin_last_name: str | None = None
 
 
 @dataclass(slots=True)

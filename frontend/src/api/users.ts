@@ -40,3 +40,16 @@ export async function assignUserRole(userId: number, payload: { role_id?: number
   const { data } = await http.patch(`/api/v1/users/${userId}/roles`, payload);
   return unwrapData<ManagedUser>(data);
 }
+
+export async function assignUserCompany(userId: number, companyId: number) {
+  const { data } = await http.patch(`/api/v1/users/${userId}/company`, { company_id: companyId });
+  return unwrapData<ManagedUser>(data);
+}
+
+export async function resetUserPassword(userId: number, newPassword: string) {
+  const { data } = await http.patch(`/api/v1/users/${userId}/reset-password`, {
+    new_password: newPassword,
+    force_change_on_next_login: false,
+  });
+  return unwrapData<ManagedUser>(data);
+}

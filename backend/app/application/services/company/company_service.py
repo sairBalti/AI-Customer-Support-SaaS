@@ -36,7 +36,12 @@ from app.domain.exceptions.company import (
     CompanyValidationError,
 )
 from app.domain.interfaces.repositories.company_repository import CompanyRepository
+from app.domain.interfaces.repositories.user_repository import UserRepository
 from app.domain.interfaces.services.audit_logger import AuditLogger
+from app.domain.enums.user_status import UserStatus
+from app.application.services.user.user_rules import validate_name, validate_password
+from app.core.security.password import hash_password
+
 
 _CLEARABLE_FIELDS = frozenset(
     {
@@ -57,9 +62,11 @@ class CompanyService:
         self,
         repository: CompanyRepository,
         audit_logger: AuditLogger,
+        users: UserRepository | None = None,
     ) -> None:
         self._repository = repository
         self._audit = audit_logger
+        self._users = users
         self._pending_audits: list[dict[str, Any]] = []
 
     async def flush_audits(self) -> None:
@@ -128,6 +135,7 @@ class CompanyService:
             "last_activity_at": datetime.now(UTC),
         }
         company = await self._repository.create(payload)
+        await self._provision_company_admin(company, data, actor)
         self._queue_audit(
             action="COMPANY_CREATED",
             entity_id=company.company_id,
@@ -136,6 +144,61 @@ class CompanyService:
             metadata={"slug": company.company_slug, "plan": company.subscription_plan.value},
         )
         return company
+
+    async def _provision_company_admin(
+        self,
+        company: Company,
+        data: CreateCompanyInput,
+        actor: RequestActor,
+    ) -> None:
+        """Create the first Company Admin for public self-service registration."""
+        password = (data.admin_password or "").strip() or None
+        if actor.is_super_admin and not password:
+            return
+        if not password:
+            raise CompanyValidationError(
+                "Admin password is required to create your sign-in account.",
+            )
+        if self._users is None:
+            raise CompanyValidationError("Unable to provision admin user.")
+
+        existing = await self._users.get_by_email(company.email)
+        if existing is not None:
+            raise CompanyConflictError("A user with this email already exists.")
+
+        role_id = await self._users.get_role_id_by_name("COMPANY_ADMIN")
+        if role_id is None:
+            raise CompanyValidationError("COMPANY_ADMIN role is not configured.")
+
+        first_name = validate_name(data.admin_first_name or "Company", field="first_name")
+        last_name = validate_name(data.admin_last_name or "Admin", field="last_name")
+        validate_password(password)
+        now = datetime.now(UTC)
+        admin = await self._users.create(
+            {
+                "company_id": company.company_id,
+                "role_id": role_id,
+                "email": company.email,
+                "password_hash": hash_password(password),
+                "first_name": first_name,
+                "last_name": last_name,
+                "display_name": f"{first_name} {last_name}",
+                "language": "en",
+                "timezone": company.timezone or "UTC",
+                "status": UserStatus.ACTIVE,
+                "is_email_verified": True,
+                "must_change_password": False,
+                "password_changed_at": now,
+                "failed_login_attempts": 0,
+            }
+        )
+        self._queue_audit(
+            action="USER_CREATED",
+            entity_id=admin.user_id,
+            company_id=company.company_id,
+            user_id=actor.user_id,
+            metadata={"email": admin.email, "role": "COMPANY_ADMIN", "source": "company_onboarding"},
+        )
 
     async def get_company(self, company_id: int, actor: RequestActor) -> Company:
         ensure_permissions(actor, "companies.read")

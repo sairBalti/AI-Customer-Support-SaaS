@@ -18,7 +18,7 @@ from app.application.services.chat.prompts import (
 from app.domain.entities.document import Document
 from app.domain.entities.knowledge_chunk import RetrievedChunk
 from app.domain.enums.document_status import DocumentStatus, StorageProvider
-from app.domain.exceptions.chat import ChatAccessDeniedError, ChatValidationError
+from app.domain.exceptions.chat import ChatAccessDeniedError, ChatNotFoundError, ChatValidationError
 from app.domain.interfaces.services.vector_store import VectorRecord
 from app.infrastructure.knowledge.embeddings.hashing import HashingEmbeddingProvider
 from app.infrastructure.llm.fake_client import FakeLlmClient
@@ -133,6 +133,34 @@ class _SessionRepo:
             object.__setattr__(session, key, value)
         return session
 
+    async def delete_by_id(
+        self,
+        session_id: int,
+        *,
+        company_id: int | None = None,
+    ) -> bool:
+        session = await self.get_by_id(session_id, company_id=company_id)
+        if session is None:
+            return False
+        del self.rows[session_id]
+        return True
+
+    async def delete_by_company(
+        self,
+        company_id: int,
+        *,
+        customer_id: int | None = None,
+    ) -> int:
+        to_delete = [
+            sid
+            for sid, session in self.rows.items()
+            if session.company_id == company_id
+            and (customer_id is None or session.customer_id == customer_id)
+        ]
+        for sid in to_delete:
+            del self.rows[sid]
+        return len(to_delete)
+
 
 class _MessageRepo:
     def __init__(self) -> None:
@@ -191,6 +219,25 @@ class _MessageRepo:
             ):
                 return msg
         return None
+
+    async def delete_by_session(
+        self,
+        session_id: int,
+        *,
+        company_id: int | None = None,
+    ) -> int:
+        kept = []
+        removed = 0
+        for msg in self.rows:
+            if msg.session_id != session_id:
+                kept.append(msg)
+                continue
+            if company_id is not None and msg.company_id != company_id:
+                kept.append(msg)
+                continue
+            removed += 1
+        self.rows = kept
+        return removed
 
 
 class _DocRepo:
@@ -345,3 +392,96 @@ async def test_chat_requires_company_context() -> None:
     )
     with pytest.raises(ChatValidationError):
         await service.create_conversation(CreateConversationInput(), actor)
+
+
+@pytest.mark.asyncio
+async def test_delete_conversation_scoped_to_customer() -> None:
+    sessions = _SessionRepo()
+    service = ChatService(
+        sessions=sessions,
+        messages=_MessageRepo(),
+        documents=_DocRepo({}),
+        embeddings=HashingEmbeddingProvider(dimension=8),
+        vectors=LocalPersistentVectorStore("."),
+        llm=FakeLlmClient(),
+        audit_logger=_Audit(),
+    )
+    owner = RequestActor(
+        user_id=1,
+        company_id=1,
+        role_name="CUSTOMER",
+        permissions=frozenset({"chat.start", "chat.read"}),
+    )
+    other = RequestActor(
+        user_id=2,
+        company_id=1,
+        role_name="CUSTOMER",
+        permissions=frozenset({"chat.start", "chat.read"}),
+    )
+    conversation = await service.create_conversation(CreateConversationInput(), owner)
+    with pytest.raises(ChatAccessDeniedError):
+        await service.delete_conversation(conversation.session_id, other)
+    await service.delete_conversation(conversation.session_id, owner)
+    with pytest.raises(ChatNotFoundError):
+        await service.get_conversation(conversation.session_id, owner)
+
+
+@pytest.mark.asyncio
+async def test_delete_conversation_after_messages(tmp_path) -> None:
+    service = ChatService(
+        sessions=_SessionRepo(),
+        messages=_MessageRepo(),
+        documents=_DocRepo({}),
+        embeddings=HashingEmbeddingProvider(dimension=16),
+        vectors=LocalPersistentVectorStore(tmp_path),
+        llm=FakeLlmClient(),
+        audit_logger=_Audit(),
+    )
+    actor = RequestActor(
+        user_id=1,
+        company_id=1,
+        role_name="CUSTOMER",
+        permissions=frozenset({"chat.start", "chat.read"}),
+    )
+    conversation = await service.create_conversation(CreateConversationInput(), actor)
+    await service.send_message(
+        conversation.session_id,
+        SendChatMessageInput(content="Need help with billing"),
+        actor,
+    )
+    await service.delete_conversation(conversation.session_id, actor)
+    with pytest.raises(ChatNotFoundError):
+        await service.get_conversation(conversation.session_id, actor)
+
+
+@pytest.mark.asyncio
+async def test_delete_all_conversations_for_customer_only() -> None:
+    sessions = _SessionRepo()
+    service = ChatService(
+        sessions=sessions,
+        messages=_MessageRepo(),
+        documents=_DocRepo({}),
+        embeddings=HashingEmbeddingProvider(dimension=8),
+        vectors=LocalPersistentVectorStore("."),
+        llm=FakeLlmClient(),
+        audit_logger=_Audit(),
+    )
+    owner = RequestActor(
+        user_id=1,
+        company_id=1,
+        role_name="CUSTOMER",
+        permissions=frozenset({"chat.start", "chat.read"}),
+    )
+    other = RequestActor(
+        user_id=2,
+        company_id=1,
+        role_name="CUSTOMER",
+        permissions=frozenset({"chat.start", "chat.read"}),
+    )
+    await service.create_conversation(CreateConversationInput(title="A"), owner)
+    await service.create_conversation(CreateConversationInput(title="B"), owner)
+    await service.create_conversation(CreateConversationInput(title="C"), other)
+    deleted = await service.delete_all_conversations(owner)
+    assert deleted == 2
+    assert len(await service.list_conversations(owner)) == 0
+    assert len(await service.list_conversations(other)) == 1

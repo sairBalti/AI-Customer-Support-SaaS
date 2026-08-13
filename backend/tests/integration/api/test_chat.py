@@ -233,3 +233,69 @@ async def test_chat_no_context_fallback_and_rbac(
     assert data["used_knowledge"] is False
     assert data["sources"] == []
     assert "knowledge base" in data["answer"].lower()
+
+
+@pytest.mark.asyncio
+async def test_delete_conversation_and_delete_all(
+    api_client: AsyncClient,
+    chat_seed: dict,
+) -> None:
+    cust = await _token(api_client, chat_seed["emails"]["customer_a"], chat_seed["password"])
+    agent = await _token(api_client, chat_seed["emails"]["agent"], chat_seed["password"])
+
+    first = await api_client.post(
+        "/api/v1/chat/conversations",
+        headers=_auth(cust),
+        json={"title": "One"},
+    )
+    second = await api_client.post(
+        "/api/v1/chat/conversations",
+        headers=_auth(cust),
+        json={"title": "Two"},
+    )
+    assert first.status_code == 201 and second.status_code == 201
+    first_id = first.json()["data"]["conversation_id"]
+    second_id = second.json()["data"]["conversation_id"]
+
+    denied = await api_client.delete(
+        f"/api/v1/chat/conversations/{first_id}",
+        headers=_auth(agent),
+    )
+    assert denied.status_code == 403
+
+    deleted = await api_client.delete(
+        f"/api/v1/chat/conversations/{first_id}",
+        headers=_auth(cust),
+    )
+    assert deleted.status_code == 200, deleted.text
+    assert deleted.json()["data"]["deleted"] is True
+
+    missing = await api_client.get(
+        f"/api/v1/chat/conversations/{first_id}",
+        headers=_auth(cust),
+    )
+    assert missing.status_code == 404
+
+    # Create another with messages so delete-all clears parent_message_id links too.
+    third = await api_client.post(
+        "/api/v1/chat/conversations",
+        headers=_auth(cust),
+        json={"title": "Three"},
+    )
+    third_id = third.json()["data"]["conversation_id"]
+    await api_client.post(
+        f"/api/v1/chat/conversations/{third_id}/messages",
+        headers=_auth(cust),
+        json={"content": "hello"},
+    )
+
+    delete_all = await api_client.delete(
+        "/api/v1/chat/conversations",
+        headers=_auth(cust),
+    )
+    assert delete_all.status_code == 200, delete_all.text
+    assert delete_all.json()["data"]["deleted_count"] == 2
+
+    listed = await api_client.get("/api/v1/chat/conversations", headers=_auth(cust))
+    assert listed.status_code == 200
+    assert listed.json()["data"]["items"] == []
