@@ -255,7 +255,7 @@ async def test_delete_conversation_and_delete_all(
     )
     assert first.status_code == 201 and second.status_code == 201
     first_id = first.json()["data"]["conversation_id"]
-    second_id = second.json()["data"]["conversation_id"]
+    assert second.json()["data"]["conversation_id"]
 
     denied = await api_client.delete(
         f"/api/v1/chat/conversations/{first_id}",

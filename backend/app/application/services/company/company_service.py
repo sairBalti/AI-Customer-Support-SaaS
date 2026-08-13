@@ -24,10 +24,13 @@ from app.application.services.company.company_rules import (
     validate_slug,
     validate_sort_by,
 )
+from app.application.services.user.user_rules import validate_name, validate_password
+from app.core.security.password import hash_password
 from app.core.security.rbac import ensure_permissions
 from app.domain.entities.company import Company
 from app.domain.enums.company_status import CompanyStatus
 from app.domain.enums.subscription_plan import SubscriptionPlan
+from app.domain.enums.user_status import UserStatus
 from app.domain.exceptions.company import (
     CompanyAccessDeniedError,
     CompanyConflictError,
@@ -38,10 +41,6 @@ from app.domain.exceptions.company import (
 from app.domain.interfaces.repositories.company_repository import CompanyRepository
 from app.domain.interfaces.repositories.user_repository import UserRepository
 from app.domain.interfaces.services.audit_logger import AuditLogger
-from app.domain.enums.user_status import UserStatus
-from app.application.services.user.user_rules import validate_name, validate_password
-from app.core.security.password import hash_password
-
 
 _CLEARABLE_FIELDS = frozenset(
     {
