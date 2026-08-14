@@ -319,8 +319,10 @@ async def test_super_admin_header_bypass_still_works_for_dev(
     """AUTH_HEADER_BYPASS remains available for local scaffolding."""
     create = await api_client.post(
         "/api/v1/companies",
+        headers={"X-Super-Admin": "true"},
         json={"company_name": "Bypass Co", "email": "b@ypass.com"},
     )
+    assert create.status_code == 201, create.text
     company_id = create.json()["data"]["company_id"]
     listed = await api_client.get(
         "/api/v1/companies",

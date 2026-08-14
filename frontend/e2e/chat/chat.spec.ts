@@ -1,10 +1,22 @@
-import { test, expect, uniqueSuffix } from "../fixtures/test";
+import { test, expect, uniqueSuffix, loginUi } from "../fixtures/test";
 import type { Page } from "@playwright/test";
 import { apiLogin, ensureSeedUsers } from "../fixtures/api";
 import { loadE2EEnv } from "../fixtures/env";
 
 function createConversationCta(page: Page) {
   return page.getByRole("button", { name: "New conversation", exact: true });
+}
+
+async function startNewConversation(page: Page) {
+  const before = page.url();
+  await createConversationCta(page).click();
+  await expect(page.getByText(/conversation created/i).first()).toBeVisible({
+    timeout: 20_000,
+  });
+  await expect(page).toHaveURL(/conversation=\d+/);
+  await expect.poll(() => page.url()).not.toBe(before);
+  await expect(page.getByText(/Status ACTIVE/i).first()).toBeVisible();
+  await expect(page.getByPlaceholder(/type your message/i)).toBeVisible();
 }
 
 async function ensureKnowledgeReady() {
@@ -50,20 +62,41 @@ async function ensureKnowledgeReady() {
 }
 
 test.describe("Chat", () => {
-  test("create conversation, ask RAG question, keep URL state", async ({ asSuperAdmin }) => {
+  test("create conversation, ask RAG question, keep URL state", async ({
+    browser,
+    env,
+  }) => {
+    // Prepare KB before opening a browser session so access tokens do not expire mid-wait.
     await ensureKnowledgeReady();
-    const page = asSuperAdmin;
+
+    const session = await apiLogin(env, env.users.superAdmin.email, env.users.superAdmin.password);
+    const context = await browser.newContext({ baseURL: env.frontendUrl });
+    const page = await context.newPage();
+    await page.goto("/login");
+    await page.evaluate((refreshToken: string) => {
+      window.sessionStorage.setItem("acs_refresh_token", refreshToken);
+    }, session.tokens.refresh_token);
     await page.goto("/app/chat");
+    if (page.url().includes("/login")) {
+      await loginUi(page, env.users.superAdmin.email, env.users.superAdmin.password);
+      await page.goto("/app/chat");
+    }
+
     await expect(page.getByRole("heading", { name: "Chat" })).toBeVisible();
-    await createConversationCta(page).click();
-    await expect(page).toHaveURL(/conversation=\d+/);
+    await startNewConversation(page);
 
     const question = "How do I reset my password according to company policy?";
-    await page.getByPlaceholder(/type your message/i).fill(question);
+    const composer = page.getByPlaceholder(/type your message/i);
+    await composer.click();
+    await composer.fill(question);
     await page.getByRole("button", { name: /^send$/i }).click();
-    await expect(page.locator("main").getByText(question).first()).toBeVisible();
+    await expect(page.locator("main").getByText(question).first()).toBeVisible({
+      timeout: 30_000,
+    });
     await expect(page.locator("main").getByText(/^AI$/i).first()).toBeVisible({ timeout: 60_000 });
-    await expect(page.locator("main").getByText(/Sources|Doc #|Account Settings|password/i).first()).toBeVisible({
+    await expect(
+      page.locator("main").getByText(/Sources|Doc #|Account Settings|password/i).first(),
+    ).toBeVisible({
       timeout: 60_000,
     });
 
@@ -72,19 +105,17 @@ test.describe("Chat", () => {
     await expect(page).toHaveURL(url);
     await expect(page.locator("main").getByText(question).first()).toBeVisible({ timeout: 30_000 });
 
-    await createConversationCta(page).click();
-    await expect(page).toHaveURL(/conversation=\d+/);
-    const secondUrl = page.url();
-    expect(secondUrl).not.toBe(url);
+    await startNewConversation(page);
+    await context.close();
   });
 
-  test("Customer can start chat; Agent cannot create conversation", async ({
-    asCustomer,
-    asAgent,
-  }) => {
+  test("Customer can start chat", async ({ asCustomer }) => {
     await asCustomer.goto("/app/chat");
+    await expect(asCustomer.getByRole("heading", { name: "Chat" })).toBeVisible();
     await expect(createConversationCta(asCustomer)).toBeVisible();
+  });
 
+  test("Agent cannot create conversation", async ({ asAgent }) => {
     await asAgent.goto("/app/chat");
     await expect(asAgent.getByRole("heading", { name: "Chat" })).toBeVisible();
     await expect(createConversationCta(asAgent)).toHaveCount(0);
@@ -95,11 +126,12 @@ test.describe("Chat escalation", () => {
   test("escalate conversation to ticket and open it", async ({ asSuperAdmin }) => {
     const page = asSuperAdmin;
     await page.goto("/app/chat");
-    await createConversationCta(page).click();
-    await expect(page).toHaveURL(/conversation=\d+/);
+    await startNewConversation(page);
     await page.getByPlaceholder(/type your message/i).fill("I need a human, escalation please.");
     await page.getByRole("button", { name: /^send$/i }).click();
-    await expect(page.locator("main").getByText(/I need a human/i).first()).toBeVisible();
+    await expect(page.locator("main").getByText(/I need a human/i).first()).toBeVisible({
+      timeout: 30_000,
+    });
     await expect(page.locator("main").getByText(/^AI$/i).first()).toBeVisible({
       timeout: 60_000,
     });

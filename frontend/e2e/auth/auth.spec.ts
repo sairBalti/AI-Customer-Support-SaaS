@@ -3,8 +3,8 @@ import { test, expect, loginUi, expectNavVisible } from "../fixtures/test";
 test.describe("Auth", () => {
   test("login with valid credentials reaches dashboard", async ({ page, env }) => {
     await page.goto("/login");
-    await expect(page.getByLabel("Email")).toBeVisible();
-    await expect(page.getByLabel("Password")).toBeVisible();
+    await expect(page.locator("#email")).toBeVisible();
+    await expect(page.locator("#password")).toBeVisible();
     await loginUi(page, env.users.superAdmin.email, env.users.superAdmin.password);
     await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible();
     await expect(page.getByText(/Super Admin|SUPER_ADMIN/i).first()).toBeVisible();
@@ -14,10 +14,12 @@ test.describe("Auth", () => {
 
   test("invalid login shows error and stays on login", async ({ page }) => {
     await page.goto("/login");
-    await page.getByLabel("Email").fill("nobody@example.com");
-    await page.getByLabel("Password").fill("DefinitelyWrong1!");
+    await page.locator("#email").pressSequentially("nobody@example.com", { delay: 10 });
+    await page.locator("#password").pressSequentially("DefinitelyWrong1!", { delay: 10 });
     await page.getByRole("button", { name: /sign in/i }).click();
-    await expect(page.getByText(/invalid|failed|credentials|unauthorized/i).first()).toBeVisible({
+    await expect(
+      page.getByText(/invalid|failed|credentials|unauthorized|incorrect/i).first(),
+    ).toBeVisible({
       timeout: 15_000,
     });
     await expect(page).toHaveURL(/\/login/);

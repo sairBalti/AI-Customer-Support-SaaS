@@ -196,7 +196,11 @@ class CompanyService:
             entity_id=admin.user_id,
             company_id=company.company_id,
             user_id=actor.user_id,
-            metadata={"email": admin.email, "role": "COMPANY_ADMIN", "source": "company_onboarding"},
+            metadata={
+                "email": admin.email,
+                "role": "COMPANY_ADMIN",
+                "source": "company_onboarding",
+            },
         )
 
     async def get_company(self, company_id: int, actor: RequestActor) -> Company:

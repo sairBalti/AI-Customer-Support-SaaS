@@ -95,7 +95,7 @@ class SQLAlchemyChatSessionRepository(ChatSessionRepository):
         if company_id is not None:
             stmt = stmt.where(ChatSessionModel.company_id == company_id)
         result = await self._session.execute(stmt)
-        return bool(result.rowcount)
+        return bool(getattr(result, "rowcount", 0))
 
     async def delete_by_company(
         self,
@@ -107,4 +107,4 @@ class SQLAlchemyChatSessionRepository(ChatSessionRepository):
         if customer_id is not None:
             stmt = stmt.where(ChatSessionModel.customer_id == customer_id)
         result = await self._session.execute(stmt)
-        return int(result.rowcount or 0)
+        return int(getattr(result, "rowcount", 0) or 0)

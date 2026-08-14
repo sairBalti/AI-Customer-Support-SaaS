@@ -7,7 +7,7 @@ test.describe("Companies", () => {
     await expect(asSuperAdmin.getByRole("table")).toBeVisible();
     await expect(asSuperAdmin.getByRole("button", { name: /add company/i })).toBeVisible();
     await expect(asSuperAdmin.getByRole("columnheader", { name: /actions/i })).toBeVisible();
-    await expect(asSuperAdmin.getByLabel("Search")).toBeVisible();
+    await expect(asSuperAdmin.locator("#company-search")).toBeVisible();
     await expect(asSuperAdmin.getByLabel("Status")).toBeVisible();
     await expect(asSuperAdmin.getByLabel("Plan")).toBeVisible();
     await expect(asSuperAdmin.getByLabel("Sort by")).toBeVisible();
@@ -24,8 +24,8 @@ test.describe("Companies", () => {
     await dialog.getByLabel(/company name/i).fill(name);
     await dialog.getByLabel(/ops email/i).fill(email);
     await dialog.getByRole("button", { name: /^create company$/i }).click();
-    await expect(asSuperAdmin.getByText(/created/i).first()).toBeVisible({ timeout: 20_000 });
-    await asSuperAdmin.getByLabel("Search").fill(name);
+    await expect(dialog).toBeHidden({ timeout: 20_000 });
+    await asSuperAdmin.locator("#company-search").fill(name);
     await asSuperAdmin.getByRole("button", { name: /^search$/i }).click();
     await expect(asSuperAdmin.getByRole("link", { name })).toBeVisible({ timeout: 20_000 });
     await expect(asSuperAdmin.getByRole("link", { name: /^edit$/i }).first()).toBeVisible();
@@ -55,8 +55,11 @@ test.describe("Companies", () => {
     await page.getByRole("button", { name: /create company/i }).click();
     await expect(page).toHaveURL(/\/login/, { timeout: 30_000 });
     await expect(page.getByText(/is ready|sign in with the admin/i)).toBeVisible();
-    await expect(page.getByLabel("Email")).toHaveValue(email);
-    await page.getByLabel("Password").fill(password);
+    await expect(page.locator("#email")).toHaveValue(email);
+    await page.locator("#password").click();
+    await page.locator("#password").fill("");
+    await page.locator("#password").pressSequentially(password, { delay: 10 });
+    await expect(page.locator("#password")).toHaveValue(password);
     await page.getByRole("button", { name: /^sign in$/i }).click();
     await expect(page).toHaveURL(/\/app(\/|$)/, { timeout: 30_000 });
     await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible();

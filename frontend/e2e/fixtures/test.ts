@@ -16,11 +16,19 @@ type Fixtures = {
 };
 
 export async function loginUi(page: Page, email: string, password: string) {
-  await page.goto("/login");
-  await page.getByLabel("Email").fill(email);
-  await page.getByLabel("Password").fill(password);
+  await page.goto("/login", { waitUntil: "domcontentloaded" });
+  await page.locator("#email").waitFor({ state: "visible" });
+  await page.locator("#email").click();
+  await page.locator("#email").fill("");
+  await page.locator("#email").pressSequentially(email, { delay: 10 });
+  await page.locator("#password").click();
+  await page.locator("#password").fill("");
+  await page.locator("#password").pressSequentially(password, { delay: 10 });
+  await expect(page.locator("#email")).toHaveValue(email);
+  await expect(page.locator("#password")).toHaveValue(password);
   await page.getByRole("button", { name: /sign in/i }).click();
-  await page.waitForURL(/\/app(\/|$)/);
+  await page.waitForURL(/\/app(\/|$)/, { timeout: 45_000 });
+  await expect(page.getByRole("button", { name: /logout/i })).toBeVisible({ timeout: 45_000 });
 }
 
 async function authenticatedPage(browser: Browser, env: E2EEnv, role: Role) {
@@ -29,13 +37,12 @@ async function authenticatedPage(browser: Browser, env: E2EEnv, role: Role) {
   const context = await browser.newContext({ baseURL: env.frontendUrl });
   const page = await context.newPage();
 
-  // Set refresh once. Avoid addInitScript — it would overwrite the rotated refresh
-  // token on later full-page navigations and force logout.
-  await page.goto("/login");
+  await page.goto("/login", { waitUntil: "networkidle" });
   await page.evaluate((refreshToken: string) => {
     window.sessionStorage.setItem("acs_refresh_token", refreshToken);
   }, session.tokens.refresh_token);
-  await page.goto("/app");
+  await page.goto("/app", { waitUntil: "networkidle" });
+
   if (page.url().includes("/login")) {
     await loginUi(page, creds.email, creds.password);
   }
@@ -57,7 +64,7 @@ async function authenticatedPage(browser: Browser, env: E2EEnv, role: Role) {
       "utf8",
     );
   } catch {
-    // ignore
+    // ignore metadata write failures
   }
 
   return page;

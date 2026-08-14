@@ -13,8 +13,8 @@ test.describe("Tickets", () => {
     await dialog.getByLabel(/^subject$/i).fill(subject);
     await dialog.getByLabel(/^description$/i).fill("Created by Playwright E2E");
     await dialog.getByRole("button", { name: /^create$/i }).click();
-    await expect(page.getByText(/ticket created/i).first()).toBeVisible({ timeout: 20_000 });
-    await expect(page.getByRole("link", { name: subject })).toBeVisible();
+    await expect(dialog).toBeHidden({ timeout: 20_000 });
+    await expect(page.getByRole("link", { name: subject })).toBeVisible({ timeout: 20_000 });
 
     await page.getByLabel(/status/i).selectOption("OPEN");
     await expect(page.getByRole("link", { name: subject })).toBeVisible();

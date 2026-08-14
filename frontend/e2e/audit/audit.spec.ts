@@ -12,7 +12,8 @@ test.describe("Audit", () => {
     await dialog.getByLabel(/^subject$/i).fill(subject);
     await dialog.getByLabel(/^description$/i).fill("Audit trail seed");
     await dialog.getByRole("button", { name: /^create$/i }).click();
-    await expect(page.getByText(/ticket created/i).first()).toBeVisible({ timeout: 30_000 });
+    await expect(dialog).toBeHidden({ timeout: 20_000 });
+    await expect(page.getByRole("link", { name: subject })).toBeVisible({ timeout: 20_000 });
 
     await page.goto("/app/audit");
     await expect(page.getByRole("heading", { name: /audit/i })).toBeVisible();

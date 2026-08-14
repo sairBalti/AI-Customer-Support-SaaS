@@ -26,6 +26,7 @@ from app.domain.exceptions.company import (
 )
 from app.domain.interfaces.repositories.company_repository import CompanyRepository
 from app.domain.interfaces.services.audit_logger import AuditLogger
+from tests.unit.application.test_user_service import FakeUsers
 
 
 class InMemoryCompanyRepository(CompanyRepository):
@@ -179,7 +180,7 @@ class RecordingAuditLogger(AuditLogger):
 def service() -> tuple[CompanyService, InMemoryCompanyRepository, RecordingAuditLogger]:
     repo = InMemoryCompanyRepository()
     audit = RecordingAuditLogger()
-    return CompanyService(repo, audit), repo, audit
+    return CompanyService(repo, audit, users=FakeUsers()), repo, audit
 
 
 @pytest.mark.asyncio
@@ -206,6 +207,9 @@ async def test_non_admin_cannot_self_assign_enterprise(service) -> None:
             email="admin@acme.com",
             subscription_plan=SubscriptionPlan.ENTERPRISE,
             activate_trial=False,
+            admin_password="Str0ng!Password",
+            admin_first_name="Ada",
+            admin_last_name="Admin",
         ),
         RequestActor(is_super_admin=False),
     )

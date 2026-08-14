@@ -293,7 +293,7 @@ export function UsersPage() {
                 >
                   <UserIdentityFields
                     prefix="create"
-                    register={form.register as UseFormRegister<FieldValues>}
+                    register={form.register as unknown as UseFormRegister<FieldValues>}
                     roleName={selectedRole}
                     roleOptions={roleOptions}
                     companyId={form.watch("company_id")}
@@ -394,7 +394,7 @@ export function UsersPage() {
           >
             <UserIdentityFields
               prefix="edit"
-              register={editForm.register as UseFormRegister<FieldValues>}
+              register={editForm.register as unknown as UseFormRegister<FieldValues>}
               roleName={editing?.role_name || ""}
               roleOptions={roleOptions}
               companyId={editForm.watch("company_id")}

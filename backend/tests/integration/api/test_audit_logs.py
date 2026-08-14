@@ -206,6 +206,9 @@ async def test_company_ops_emit_audit_and_isolation(
             "company_slug": "fresh-audit-co",
             "email": "hello@fresh-audit.co",
             "timezone": "UTC",
+            "admin_password": "Str0ng!Password",
+            "admin_first_name": "Fresh",
+            "admin_last_name": "Admin",
         },
     )
     assert created.status_code == 201, created.text

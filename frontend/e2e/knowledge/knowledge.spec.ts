@@ -76,6 +76,7 @@ test.describe("Knowledge search", () => {
   test("empty query is validated", async ({ asSuperAdmin }) => {
     const page = asSuperAdmin;
     await page.goto("/app/knowledge");
+    await expect(page.getByRole("heading", { name: /knowledge/i })).toBeVisible();
     await page.getByRole("button", { name: /^search$/i }).click();
     await expect(page.getByText(/enter a search query|required|min/i).first()).toBeVisible();
   });

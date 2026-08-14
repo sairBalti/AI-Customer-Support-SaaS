@@ -94,15 +94,18 @@ export function TicketsPage() {
 
   const customerOptions = useMemo(() => {
     const items = usersQuery.data?.items ?? [];
-    const customers = items.filter((u) => (u.role_name || "").toUpperCase() === "CUSTOMER");
-    return customers.length > 0 ? customers : items;
-  }, [usersQuery.data?.items]);
+    const companyScoped = user?.company_id
+      ? items.filter((u) => u.company_id === user.company_id)
+      : items;
+    const customers = companyScoped.filter(
+      (u) => (u.role_name || "").toUpperCase() === "CUSTOMER",
+    );
+    return customers.length > 0 ? customers : companyScoped;
+  }, [usersQuery.data?.items, user?.company_id]);
 
   const defaultCustomerId = useMemo(() => {
-    const items = usersQuery.data?.items ?? [];
-    const customers = items.filter((u) => (u.role_name || "").toUpperCase() === "CUSTOMER");
-    return customers[0]?.user_id ?? user?.user_id;
-  }, [usersQuery.data?.items, user?.user_id]);
+    return customerOptions[0]?.user_id ?? user?.user_id;
+  }, [customerOptions, user?.user_id]);
 
   const form = useForm<CreateValues>({
     resolver: zodResolver(createSchema),
