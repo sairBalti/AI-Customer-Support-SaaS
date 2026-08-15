@@ -1,0 +1,60 @@
+# Monorepo Docker build excludes (repository-root context).
+# Keep backend runtime files (app/, alembic/, requirements*, alembic.ini) included.
+
+# VCS / IDE
+.git
+.gitignore
+.gitattributes
+.cursor
+.vscode
+.idea
+
+# Frontend (deployed separately on Vercel)
+frontend/
+node_modules/
+
+# Root and backend secrets — never bake into the image
+.env
+.env.*
+!**/.env.example
+backend/.env
+backend/.env.*
+!backend/.env.example
+
+# Local Python environments and caches
+**/.venv
+**/venv
+**/__pycache__
+**/*.py[cod]
+**/*$py.class
+**/.pytest_cache
+**/.mypy_cache
+**/.ruff_cache
+**/.coverage
+**/htmlcov
+**/*.egg-info
+**/dist
+**/build
+
+# Local runtime data / logs
+**/.chroma
+**/.storage
+**/.logs
+*.log
+
+# Docs and local tooling noise (not required at runtime)
+**/*.md
+docs/
+scripts/
+!backend/.env.example
+
+# CI / agent artifacts
+.github/
+**/playwright-report/
+**/test-results/
+**/e2e-last-run.txt
+**/vite-e2e*.log
+
+# Nested Docker metadata (Compose uses backend/Dockerfile separately)
+backend/Dockerfile
+backend/.dockerignore

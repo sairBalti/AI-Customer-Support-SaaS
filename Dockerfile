@@ -1,5 +1,6 @@
-# Backend API — production-style image for local Docker Compose.
-# Python version aligned with GitHub Actions CI (3.14).
+# Root Dockerfile for Back4App Containers (and other host-root builds).
+# Build context: repository root. Does not replace backend/Dockerfile (Compose).
+# Python version aligned with backend/Dockerfile and GitHub Actions CI (3.14).
 
 FROM python:3.14-slim
 
@@ -13,12 +14,14 @@ WORKDIR /app
 RUN groupadd --system --gid 1000 app \
     && useradd --system --uid 1000 --gid app --create-home --home-dir /home/app app
 
-COPY requirements.txt requirements-dev.txt .
+COPY backend/requirements.txt backend/requirements-dev.txt ./
 RUN python -m pip install --upgrade pip \
     && python -m pip install --retries 5 --timeout 120 -r requirements.txt \
     && python -m pip install --retries 5 --timeout 120 -r requirements-dev.txt
- 
-COPY --chown=app:app . .
+
+# Application code + Alembic live under backend/; place them at /app so
+# `uvicorn app.main:app` and `alembic` match the Compose image layout.
+COPY --chown=app:app backend/ ./
 
 RUN mkdir -p /app/.storage /app/.chroma \
         /home/app/.cache/ruff \
