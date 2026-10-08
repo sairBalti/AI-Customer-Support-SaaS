@@ -152,7 +152,8 @@ async def test_ticket_crud_assign_resolve_close(
     )
     assert created.status_code == 201, created.text
     ticket_id = created.json()["data"]["ticket_id"]
-    assert created.json()["data"]["status"] == "OPEN"
+    assert created.json()["data"]["status"] == "IN_PROGRESS"
+    assert created.json()["data"]["assigned_to"] == ticket_seed["user_ids"]["agent_a"]
 
     listed = await api_client.get("/api/v1/tickets", headers=_auth(admin))
     assert listed.status_code == 200
@@ -249,7 +250,8 @@ async def test_escalate_from_chat_conversation(
     data = escalated.json()["data"]
     assert data["conversation_id"] == conversation_id
     assert data["source"] == "AI_CHAT"
-    assert data["status"] == "OPEN"
+    assert data["status"] == "IN_PROGRESS"
+    assert data["assigned_to"] == ticket_seed["user_ids"]["agent_a"]
 
     denied = await api_client.post(
         f"/api/v1/chat/conversations/{conversation_id}/ticket",

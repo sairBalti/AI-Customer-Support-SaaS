@@ -5,6 +5,7 @@ import { loadE2EEnv } from "./e2e/fixtures/env";
 
 const rootDir = path.dirname(fileURLToPath(import.meta.url));
 const env = loadE2EEnv();
+const useSystemChrome = process.env.PW_USE_SYSTEM_CHROME === "1";
 
 export default defineConfig({
   testDir: "./e2e",
@@ -22,14 +23,17 @@ export default defineConfig({
     baseURL: env.frontendUrl,
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
-    video: "retain-on-failure",
+    video: useSystemChrome ? "off" : "retain-on-failure",
     actionTimeout: 15_000,
     navigationTimeout: 30_000,
   },
   projects: [
     {
       name: "chromium",
-      use: { ...devices["Desktop Chrome"] },
+      use: {
+        ...devices["Desktop Chrome"],
+        ...(useSystemChrome ? { channel: "chrome" as const } : {}),
+      },
     },
   ],
   webServer: {

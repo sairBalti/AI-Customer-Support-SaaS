@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import Any, Protocol
 
 from app.domain.entities.ticket import Ticket
@@ -44,6 +45,15 @@ class TicketRepository(Protocol):
     ) -> Ticket | None: ...
 
     async def count_by_company(self, company_id: int) -> int: ...
+
+    async def count_active_by_assignee(
+        self,
+        *,
+        company_id: int,
+        assignee_ids: Sequence[int],
+    ) -> dict[int, int]:
+        """Count OPEN + IN_PROGRESS tickets per assignee (missing ids → 0)."""
+        ...
 
     async def get_by_conversation(
         self,

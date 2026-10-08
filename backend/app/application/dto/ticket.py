@@ -18,6 +18,7 @@ class CreateTicketInput:
     source_message_id: int | None = None
     customer_id: int | None = None
     source: TicketSource = TicketSource.MANUAL
+    auto_route: bool = True
 
 
 @dataclass(slots=True)

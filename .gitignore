@@ -36,3 +36,6 @@ Thumbs.db
 # Misc
 *.log
 .python-version
+
+# Playwright downloaded browsers
+frontend/.playwright-browsers/

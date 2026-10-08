@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import Any
 
 from sqlalchemy import asc, desc, func, select
@@ -123,6 +124,31 @@ class SQLAlchemyTicketRepository(TicketRepository):
             .where(TicketModel.company_id == company_id)
         )
         return int((await self._session.execute(stmt)).scalar_one())
+
+    async def count_active_by_assignee(
+        self,
+        *,
+        company_id: int,
+        assignee_ids: Sequence[int],
+    ) -> dict[int, int]:
+        if not assignee_ids:
+            return {}
+        active = (TicketStatus.OPEN.value, TicketStatus.IN_PROGRESS.value)
+        stmt = (
+            select(TicketModel.assigned_to, func.count())
+            .where(
+                TicketModel.company_id == company_id,
+                TicketModel.assigned_to.in_(list(assignee_ids)),
+                TicketModel.status.in_(active),
+            )
+            .group_by(TicketModel.assigned_to)
+        )
+        rows = (await self._session.execute(stmt)).all()
+        counts = {int(uid): 0 for uid in assignee_ids}
+        for assigned_to, total in rows:
+            if assigned_to is not None:
+                counts[int(assigned_to)] = int(total)
+        return counts
 
     async def get_by_conversation(
         self,

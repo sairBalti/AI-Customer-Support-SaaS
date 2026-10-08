@@ -30,3 +30,5 @@ playwright/.cache/
 *.njsproj
 *.sln
 *.sw?
+# Playwright downloaded browser
+.playwright-browsers/

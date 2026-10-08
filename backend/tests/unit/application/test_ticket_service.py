@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from decimal import Decimal
 from typing import Any
 
 import pytest
@@ -76,6 +77,8 @@ class _TicketRepo:
             items = [t for t in items if t.customer_id == kwargs["customer_id"]]
         if kwargs.get("status") is not None:
             items = [t for t in items if t.status == kwargs["status"]]
+        if kwargs.get("assigned_to") is not None:
+            items = [t for t in items if t.assigned_to == kwargs["assigned_to"]]
         return items, len(items)
 
     async def update(
@@ -95,6 +98,23 @@ class _TicketRepo:
     async def count_by_company(self, company_id: int) -> int:
         return sum(1 for t in self.rows.values() if t.company_id == company_id)
 
+    async def count_active_by_assignee(
+        self,
+        *,
+        company_id: int,
+        assignee_ids: list[int] | tuple[int, ...],
+    ) -> dict[int, int]:
+        active = {TicketStatus.OPEN, TicketStatus.IN_PROGRESS}
+        counts = {uid: 0 for uid in assignee_ids}
+        for ticket in self.rows.values():
+            if (
+                ticket.company_id == company_id
+                and ticket.assigned_to in counts
+                and ticket.status in active
+            ):
+                counts[ticket.assigned_to] += 1
+        return counts
+
     async def get_by_conversation(
         self,
         conversation_id: int,
@@ -110,12 +130,35 @@ class _TicketRepo:
 
 
 class _UserRepo:
-    def __init__(self, users: dict[int, ManagedUser]) -> None:
+    def __init__(
+        self,
+        users: dict[int, ManagedUser],
+        *,
+        roles: dict[str, int] | None = None,
+    ) -> None:
         self.users = users
+        self.roles = roles or {}
 
     async def get_by_id(self, user_id: int, *, include_deleted: bool = False) -> ManagedUser | None:
         _ = include_deleted
         return self.users.get(user_id)
+
+    async def get_role_id_by_name(self, role_name: str) -> int | None:
+        return self.roles.get(role_name.upper())
+
+    async def search(self, **kwargs: Any) -> tuple[list[ManagedUser], int]:
+        company_id = kwargs.get("company_id")
+        role_id = kwargs.get("role_id")
+        status = kwargs.get("status")
+        items = list(self.users.values())
+        if company_id is not None:
+            items = [u for u in items if u.company_id == company_id]
+        if role_id is not None:
+            items = [u for u in items if u.role_id == role_id]
+        if status is not None:
+            items = [u for u in items if u.status == status]
+        items.sort(key=lambda u: u.user_id)
+        return items, len(items)
 
 
 class _SessionRepo:
@@ -158,12 +201,18 @@ class _Audit:
         _ = kwargs
 
 
-def _user(user_id: int, company_id: int) -> ManagedUser:
+def _user(
+    user_id: int,
+    company_id: int,
+    *,
+    role_id: int = 1,
+    role_name: str | None = None,
+) -> ManagedUser:
     now = datetime.now(UTC)
     return ManagedUser(
         user_id=user_id,
         company_id=company_id,
-        role_id=1,
+        role_id=role_id,
         first_name="T",
         last_name="U",
         email=f"u{user_id}@ex.com",
@@ -175,12 +224,11 @@ def _user(user_id: int, company_id: int) -> ManagedUser:
         must_change_password=False,
         created_at=now,
         updated_at=now,
+        role_name=role_name,
     )
 
 
 def _session(session_id: int, company_id: int, customer_id: int) -> ChatSession:
-    from decimal import Decimal
-
     now = datetime.now(UTC)
     return ChatSession(
         session_id=session_id,
@@ -208,20 +256,22 @@ def _service(
     tickets: _TicketRepo | None = None,
     users: dict[int, ManagedUser] | None = None,
     sessions: dict[int, ChatSession] | None = None,
+    roles: dict[str, int] | None = None,
 ) -> TicketService:
     return TicketService(
         tickets=tickets or _TicketRepo(),
-        users=_UserRepo(users or {1: _user(1, 1), 2: _user(2, 1), 9: _user(9, 2)}),
+        users=_UserRepo(
+            users or {1: _user(1, 1), 2: _user(2, 1), 9: _user(9, 2)},
+            roles=roles,
+        ),
         sessions=_SessionRepo(sessions or {}),
         messages=_MessageRepo(),
         audit_logger=_Audit(),
     )
 
 
-@pytest.mark.asyncio
-async def test_create_and_status_workflow() -> None:
-    service = _service()
-    admin = RequestActor(
+def _admin() -> RequestActor:
+    return RequestActor(
         user_id=2,
         company_id=1,
         role_name="COMPANY_ADMIN",
@@ -236,6 +286,12 @@ async def test_create_and_status_workflow() -> None:
             }
         ),
     )
+
+
+@pytest.mark.asyncio
+async def test_create_and_status_workflow() -> None:
+    service = _service()
+    admin = _admin()
     ticket = await service.create_ticket(
         CreateTicketInput(
             subject="Billing issue",
@@ -248,6 +304,7 @@ async def test_create_and_status_workflow() -> None:
     )
     assert ticket.status == TicketStatus.OPEN
     assert ticket.priority == TicketPriority.HIGH
+    assert ticket.assigned_to is None
 
     assigned = await service.assign_ticket(
         ticket.ticket_id,
@@ -288,7 +345,6 @@ async def test_invalid_transition_and_isolation() -> None:
         CreateTicketInput(subject="X", description="Y", customer_id=1),
         admin,
     )
-    # OPEN -> CLOSED is allowed by matrix
     await service.close_ticket(ticket.ticket_id, admin)
 
     outsider = RequestActor(
@@ -385,3 +441,87 @@ async def test_validation_errors() -> None:
             CreateTicketInput(subject=" ", description="x", customer_id=1),
             actor,
         )
+
+
+@pytest.mark.asyncio
+async def test_auto_routes_to_least_loaded_agent() -> None:
+    agent_role = 40
+    users = {
+        1: _user(1, 1, role_id=1, role_name="CUSTOMER"),
+        2: _user(2, 1, role_id=2, role_name="COMPANY_ADMIN"),
+        10: _user(10, 1, role_id=agent_role, role_name="SUPPORT_AGENT"),
+        11: _user(11, 1, role_id=agent_role, role_name="SUPPORT_AGENT"),
+    }
+    service = _service(
+        users=users,
+        roles={"SUPPORT_AGENT": agent_role, "SUPPORT_MANAGER": 30},
+    )
+    admin = _admin()
+    first = await service.create_ticket(
+        CreateTicketInput(subject="A", description="A", customer_id=1),
+        admin,
+    )
+    assert first.assigned_to == 10
+    assert first.status == TicketStatus.IN_PROGRESS
+
+    second = await service.create_ticket(
+        CreateTicketInput(subject="B", description="B", customer_id=1),
+        admin,
+    )
+    assert second.assigned_to == 11
+
+    third = await service.create_ticket(
+        CreateTicketInput(subject="C", description="C", customer_id=1),
+        admin,
+    )
+    assert third.assigned_to == 10
+
+
+@pytest.mark.asyncio
+async def test_auto_route_can_be_disabled() -> None:
+    agent_role = 40
+    users = {
+        1: _user(1, 1),
+        2: _user(2, 1),
+        10: _user(10, 1, role_id=agent_role, role_name="SUPPORT_AGENT"),
+    }
+    service = _service(users=users, roles={"SUPPORT_AGENT": agent_role})
+    ticket = await service.create_ticket(
+        CreateTicketInput(
+            subject="No route",
+            description="keep open",
+            customer_id=1,
+            auto_route=False,
+        ),
+        _admin(),
+    )
+    assert ticket.assigned_to is None
+    assert ticket.status == TicketStatus.OPEN
+
+
+@pytest.mark.asyncio
+async def test_escalate_auto_routes_for_customer() -> None:
+    agent_role = 40
+    sessions = {10: _session(10, 1, 1)}
+    users = {
+        1: _user(1, 1, role_name="CUSTOMER"),
+        10: _user(10, 1, role_id=agent_role, role_name="SUPPORT_AGENT"),
+    }
+    service = _service(
+        sessions=sessions,
+        users=users,
+        roles={"SUPPORT_AGENT": agent_role},
+    )
+    customer = RequestActor(
+        user_id=1,
+        company_id=1,
+        role_name="CUSTOMER",
+        permissions=frozenset({"tickets.create", "tickets.read"}),
+    )
+    ticket = await service.create_from_conversation(
+        10,
+        EscalateConversationInput(subject="Need a human", description="AI failed"),
+        customer,
+    )
+    assert ticket.assigned_to == 10
+    assert ticket.status == TicketStatus.IN_PROGRESS

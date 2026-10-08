@@ -13,6 +13,7 @@ from app.application.dto.ticket import (
     TicketListQuery,
     UpdateTicketInput,
 )
+from app.application.services.ticket.ticket_routing import select_assignee
 from app.core.pagination import Page
 from app.core.security.rbac import ensure_permissions
 from app.domain.entities.ticket import Ticket
@@ -148,6 +149,8 @@ class TicketService:
             company_id=company_id,
             user_id=actor.user_id,
         )
+        if data.auto_route:
+            ticket = await self._auto_route_ticket(ticket, actor)
         return ticket
 
     async def list_tickets(
@@ -245,9 +248,41 @@ class TicketService:
         if ticket.is_closed:
             raise TicketOperationForbiddenError("Closed tickets cannot be assigned.")
         await self._assert_user_in_company(data.assigned_to, ticket.company_id)
+        return await self._apply_assignment(
+            ticket,
+            data.assigned_to,
+            actor,
+            audit_action="tickets.assign",
+        )
 
+    async def _auto_route_ticket(self, ticket: Ticket, actor: RequestActor) -> Ticket:
+        """Assign to least-loaded SUPPORT_AGENT (then SUPPORT_MANAGER). No-op if none."""
+        if ticket.assigned_to is not None or ticket.is_closed:
+            return ticket
+        assignee_id = await select_assignee(
+            company_id=ticket.company_id,
+            users=self._users,
+            tickets=self._tickets,
+        )
+        if assignee_id is None:
+            return ticket
+        return await self._apply_assignment(
+            ticket,
+            assignee_id,
+            actor,
+            audit_action="tickets.auto_assign",
+        )
+
+    async def _apply_assignment(
+        self,
+        ticket: Ticket,
+        assigned_to: int,
+        actor: RequestActor,
+        *,
+        audit_action: str,
+    ) -> Ticket:
         updates: dict[str, Any] = {
-            "assigned_to": data.assigned_to,
+            "assigned_to": assigned_to,
             "updated_at": datetime.now(UTC),
         }
         if ticket.status == TicketStatus.OPEN:
@@ -259,11 +294,11 @@ class TicketService:
         )
         assert updated is not None
         self._queue_audit(
-            action="tickets.assign",
+            action=audit_action,
             entity_id=ticket.ticket_id,
             company_id=ticket.company_id,
             user_id=actor.user_id,
-            metadata={"assigned_to": data.assigned_to},
+            metadata={"assigned_to": assigned_to},
         )
         return updated
 
