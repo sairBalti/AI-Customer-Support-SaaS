@@ -37,11 +37,11 @@ async function authenticatedPage(browser: Browser, env: E2EEnv, role: Role) {
   const context = await browser.newContext({ baseURL: env.frontendUrl });
   const page = await context.newPage();
 
-  await page.goto("/login", { waitUntil: "networkidle" });
+  await page.goto("/login", { waitUntil: "domcontentloaded" });
   await page.evaluate((refreshToken: string) => {
     window.sessionStorage.setItem("acs_refresh_token", refreshToken);
   }, session.tokens.refresh_token);
-  await page.goto("/app", { waitUntil: "networkidle" });
+  await page.goto("/app", { waitUntil: "domcontentloaded" });
 
   if (page.url().includes("/login")) {
     await loginUi(page, creds.email, creds.password);

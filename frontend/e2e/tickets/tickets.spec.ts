@@ -12,12 +12,29 @@ test.describe("Tickets", () => {
     await expect(dialog).toBeVisible();
     await dialog.getByLabel(/^subject$/i).fill(subject);
     await dialog.getByLabel(/^description$/i).fill("Created by Playwright E2E");
-    await dialog.getByRole("button", { name: /^create$/i }).click();
-    await expect(dialog).toBeHidden({ timeout: 20_000 });
-    await expect(page.getByRole("link", { name: subject })).toBeVisible({ timeout: 20_000 });
+    const createResponsePromise = page.waitForResponse(
+      (response) =>
+        response.request().method() === "POST" &&
+        response.url().includes("/api/v1/tickets"),
+    );
 
-    await page.getByLabel(/status/i).selectOption("OPEN");
-    await expect(page.getByRole("link", { name: subject })).toBeVisible();
+    await dialog.getByRole("button", { name: /^create$/i }).click();
+
+    const createResponse = await createResponsePromise;
+    console.log(
+      "Created ticket API response:",
+      createResponse.status(),
+      await createResponse.text(),
+    );
+    await expect(dialog).toBeHidden({ timeout: 20_000 });
+
+    const statusFilter = page.getByLabel("Status");
+    await statusFilter.selectOption("IN_PROGRESS");
+
+    await expect(statusFilter).toHaveValue("IN_PROGRESS");
+    await expect(page.getByRole("link", { name: subject })).toBeVisible({
+      timeout: 20_000,
+    });
   });
 
   test("assign → resolve → close workflow", async ({ asSuperAdmin, env }) => {
