@@ -150,4 +150,37 @@ test.describe("Chat escalation", () => {
     await page.getByRole("link", { name: subject }).click();
     await expect(page).toHaveURL(/\/app\/tickets\/\d+/);
   });
+
+  test("customer question with no relevant knowledge automatically creates a ticket", async ({
+    asCustomer,
+  }) => {
+    const page = asCustomer;
+    const question = `E2E-${uniqueSuffix()} Could you deliver a submarine to Mars using quantum teleportation?`;
+    const subject = `AI could not answer: ${question.slice(0, 70)}`;
+
+    await page.goto("/app/chat");
+    await startNewConversation(page);
+
+    await page.getByPlaceholder(/type your message/i).fill(question);
+    await page.getByRole("button", { name: /^send$/i }).click();
+
+    await expect(page.locator("main").getByText(question).first()).toBeVisible({
+      timeout: 30_000,
+    });
+    await expect(
+      page.locator("main").getByText(/not have enough information.*knowledge base/i).first(),
+    ).toBeVisible({ timeout: 60_000 });
+
+    // Reload to verify the persisted conversation status, not just local UI state.
+    await page.reload();
+    await expect(page.getByText(/Status ESCALATED/i).first()).toBeVisible({
+      timeout: 30_000,
+    });
+
+    await page.goto("/app/tickets");
+    await expect(page.getByRole("link", { name: subject, exact: true })).toBeVisible({
+      timeout: 30_000,
+    });
+  });
+
 });
