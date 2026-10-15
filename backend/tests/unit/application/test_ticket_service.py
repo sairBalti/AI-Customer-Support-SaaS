@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
@@ -102,7 +103,7 @@ class _TicketRepo:
         self,
         *,
         company_id: int,
-        assignee_ids: list[int] | tuple[int, ...],
+        assignee_ids: Sequence[int],
     ) -> dict[int, int]:
         active = {TicketStatus.OPEN, TicketStatus.IN_PROGRESS}
         counts = {uid: 0 for uid in assignee_ids}

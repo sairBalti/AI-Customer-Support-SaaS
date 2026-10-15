@@ -90,6 +90,7 @@ async def test_database_audit_logger_propagates_repository_errors() -> None:
             metadata={"password": "nope", "token_id": 9},
         )
     assert create.await_count == 1
+    assert create.await_args is not None
     payload = create.await_args.args[0]
     assert "password" not in (payload.get("metadata") or {})
     assert payload["metadata"].get("token_id") == 9
