@@ -17,6 +17,7 @@ from app.application.services.chat.prompts import (
 )
 from app.domain.entities.document import Document
 from app.domain.entities.knowledge_chunk import RetrievedChunk
+from app.domain.enums.chat_status import ChatSessionStatus
 from app.domain.enums.document_status import DocumentStatus, StorageProvider
 from app.domain.exceptions.chat import ChatAccessDeniedError, ChatNotFoundError, ChatValidationError
 from app.domain.interfaces.services.vector_store import VectorRecord
@@ -184,7 +185,7 @@ class _MessageRepo:
             completion_tokens=int(data.get("completion_tokens", 0)),
             total_tokens=int(data.get("total_tokens", 0)),
             estimated_cost=Decimal(data.get("estimated_cost", 0)),
-            is_escalated=False,
+            is_escalated=bool(data.get("is_escalated", False)),
             created_at=data["created_at"],
             sender_id=data.get("sender_id"),
             parent_message_id=data.get("parent_message_id"),
@@ -485,3 +486,126 @@ async def test_delete_all_conversations_for_customer_only() -> None:
     assert deleted == 2
     assert len(await service.list_conversations(owner)) == 0
     assert len(await service.list_conversations(other)) == 1
+
+
+class _TicketService:
+    """Fake ticket service for chat escalation tests."""
+
+    def __init__(self, sessions: _SessionRepo) -> None:
+        self.sessions = sessions
+        self.calls: list[tuple[int, Any, RequestActor]] = []
+
+    async def create_from_conversation(
+        self,
+        conversation_id: int,
+        data: Any,
+        actor: RequestActor,
+    ) -> Any:
+        self.calls.append((conversation_id, data, actor))
+        session = self.sessions.rows[conversation_id]
+        object.__setattr__(session, "ticket_id", 100 + len(self.calls))
+        return object()
+
+
+@pytest.mark.asyncio
+async def test_chat_no_context_escalates_and_creates_ticket(
+    tmp_path,
+) -> None:
+    sessions = _SessionRepo()
+    tickets = _TicketService(sessions)
+    service = ChatService(
+        sessions=sessions,
+        messages=_MessageRepo(),
+        documents=_DocRepo({}),
+        embeddings=HashingEmbeddingProvider(dimension=16),
+        vectors=LocalPersistentVectorStore(tmp_path),
+        llm=FakeLlmClient(),
+        audit_logger=_Audit(),
+        ticket_service=tickets,
+    )
+    actor = RequestActor(
+        user_id=1,
+        company_id=1,
+        role_name="CUSTOMER",
+        permissions=frozenset({"chat.start", "chat.read"}),
+    )
+    conversation = await service.create_conversation(CreateConversationInput(), actor)
+
+    first = await service.send_message(
+        conversation.session_id,
+        SendChatMessageInput(content="How do I reset my password?"),
+        actor,
+    )
+
+    assert first.used_knowledge is False
+    assert first.answer == NO_CONTEXT_ANSWER
+    assert first.assistant_message.is_escalated is True
+    assert first.conversation.escalation_required is True
+    assert first.conversation.session_status == ChatSessionStatus.ESCALATED
+    assert first.conversation.ticket_id is not None
+    assert len(tickets.calls) == 1
+
+    ticket_conversation_id, ticket_data, ticket_actor = tickets.calls[0]
+    assert ticket_conversation_id == conversation.session_id
+    assert "reset my password" in ticket_data.description
+    assert ticket_data.source_message_id == first.user_message.message_id
+    assert ticket_actor == actor
+
+
+@pytest.mark.asyncio
+async def test_chat_with_relevant_knowledge_does_not_escalate(
+    tmp_path,
+) -> None:
+    sessions = _SessionRepo()
+    tickets = _TicketService(sessions)
+    embeddings = HashingEmbeddingProvider(dimension=32)
+    store = LocalPersistentVectorStore(tmp_path)
+    vector = (await embeddings.embed_texts(["Refund policy allows returns within thirty days."]))[0]
+    await store.upsert(
+        [
+            VectorRecord(
+                id="refund-chunk",
+                embedding=vector,
+                content="Refund policy allows returns within thirty days.",
+                metadata={
+                    "company_id": 1,
+                    "document_id": 10,
+                    "chunk_uuid": "refund-chunk",
+                    "chunk_index": 0,
+                    "source_filename": "refund.txt",
+                    "page_number": 1,
+                },
+            )
+        ]
+    )
+
+    service = ChatService(
+        sessions=sessions,
+        messages=_MessageRepo(),
+        documents=_DocRepo({10: _doc(1, 10)}),
+        embeddings=embeddings,
+        vectors=store,
+        llm=FakeLlmClient(),
+        audit_logger=_Audit(),
+        top_k=3,
+        ticket_service=tickets,
+    )
+    actor = RequestActor(
+        user_id=1,
+        company_id=1,
+        role_name="CUSTOMER",
+        permissions=frozenset({"chat.start", "chat.read"}),
+    )
+    conversation = await service.create_conversation(CreateConversationInput(), actor)
+
+    result = await service.send_message(
+        conversation.session_id,
+        SendChatMessageInput(content="What is the refund policy?"),
+        actor,
+    )
+
+    assert result.used_knowledge is True
+    assert result.sources
+    assert result.assistant_message.is_escalated is False
+    assert result.conversation.escalation_required is False
+    assert tickets.calls == []

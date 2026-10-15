@@ -234,6 +234,31 @@ async def test_chat_no_context_fallback_and_rbac(
     assert data["sources"] == []
     assert "knowledge base" in data["answer"].lower()
 
+    # The no-context customer question should create and link a real ticket.
+    detail = await api_client.get(
+        f"/api/v1/chat/conversations/{conversation_id}",
+        headers=_auth(cust),
+    )
+    assert detail.status_code == 200, detail.text
+    conversation = detail.json()["data"]
+    messages = conversation["messages"]
+    assert len(messages) >= 2
+
+    ticket_response = await api_client.get(
+        "/api/v1/tickets",
+        headers=_auth(cust),
+    )
+    assert ticket_response.status_code == 200, ticket_response.text
+    ticket_items = ticket_response.json()["data"]["items"]
+    matching_tickets = [
+        ticket for ticket in ticket_items if ticket.get("conversation_id") == conversation_id
+    ]
+
+    assert len(matching_tickets) == 1
+    ticket = matching_tickets[0]
+    assert ticket["conversation_id"] == conversation_id
+    assert "Do you ship to Mars?" in ticket["description"]
+
 
 @pytest.mark.asyncio
 async def test_delete_conversation_and_delete_all(

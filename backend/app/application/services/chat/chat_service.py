@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import time
 import uuid
 from datetime import UTC, datetime
@@ -9,13 +10,19 @@ from decimal import Decimal
 from typing import Any
 
 from app.application.context import RequestActor
-from app.application.dto.chat import ChatAnswerResult, CreateConversationInput, SendChatMessageInput
+from app.application.dto.chat import (
+    ChatAnswerResult,
+    CreateConversationInput,
+    SendChatMessageInput,
+)
+from app.application.dto.ticket import EscalateConversationInput
 from app.application.services.chat.prompts import (
     GROUNDED_SYSTEM_PROMPT,
     NO_CONTEXT_ANSWER,
     citations_from_chunks,
     format_retrieval_context,
 )
+from app.application.services.ticket.ticket_service import TicketService
 from app.core.security.rbac import ensure_permissions
 from app.domain.entities.chat_message import ChatMessage
 from app.domain.entities.chat_session import ChatSession
@@ -55,6 +62,8 @@ class ChatService:
         llm: LlmClient,
         audit_logger: AuditLogger,
         top_k: int = 5,
+        ticket_service: TicketService | None = None,
+        lexical_relevance_guard: bool = False,
     ) -> None:
         self._sessions = sessions
         self._messages = messages
@@ -64,6 +73,8 @@ class ChatService:
         self._llm = llm
         self._audit = audit_logger
         self._top_k = top_k if top_k > 0 else 5
+        self._ticket_service = ticket_service
+        self._lexical_relevance_guard = lexical_relevance_guard
         self._pending_audits: list[dict[str, Any]] = []
 
     async def flush_audits(self) -> None:
@@ -74,9 +85,13 @@ class ChatService:
         for event in events:
             await self._audit.log(**event)
         self._pending_audits.clear()
+        if self._ticket_service is not None:
+            await self._ticket_service.flush_audits()
 
     def discard_audits(self) -> None:
         self._pending_audits.clear()
+        if self._ticket_service is not None:
+            self._ticket_service.discard_audits()
 
     async def create_conversation(
         self,
@@ -246,6 +261,22 @@ class ChatService:
         )
         sources = await self._build_sources(chunks)
         used_knowledge = bool(chunks)
+        escalated = False
+        if not used_knowledge and self._is_customer(actor) and self._ticket_service:
+            if session.ticket_id is None:
+                await self._ticket_service.create_from_conversation(
+                    session.session_id,
+                    EscalateConversationInput(
+                        subject=f"AI could not answer: {content[:70]}",
+                        description=(
+                            "Automatic escalation: no relevant company knowledge was found.\n\n"
+                            f"Customer question: {content}"
+                        ),
+                        source_message_id=user_msg.message_id,
+                    ),
+                    actor,
+                )
+            escalated = True
         started = time.perf_counter()
 
         if not used_knowledge:
@@ -310,7 +341,7 @@ class ChatService:
                 ],
                 "citations": sources,
                 "metadata": {"used_knowledge": used_knowledge},
-                "is_escalated": False,
+                "is_escalated": escalated,
                 "created_at": datetime.now(UTC),
             }
         )
@@ -328,7 +359,10 @@ class ChatService:
                 "total_completion_tokens": session.total_completion_tokens + completion_tokens,
                 "total_tokens": session.total_tokens + prompt_tokens + completion_tokens,
                 "last_message_at": datetime.now(UTC),
-                "session_status": ChatSessionStatus.ACTIVE,
+                "session_status": (
+                    ChatSessionStatus.ESCALATED if escalated else session.session_status
+                ),
+                "escalation_required": escalated or session.escalation_required,
                 "ai_provider": llm_provider,
                 "ai_model": llm_model,
                 "updated_at": datetime.now(UTC),
@@ -373,6 +407,10 @@ class ChatService:
         results: list[RetrievedChunk] = []
         for hit in hits:
             meta = hit.metadata or {}
+            if self._lexical_relevance_guard and not self._has_lexical_relevance(
+                query, hit.content
+            ):
+                continue
             if int(meta.get("company_id", -1)) != int(company_id):
                 continue
             doc_id = int(meta.get("document_id", 0))
@@ -401,6 +439,99 @@ class ChatService:
                 )
             )
         return results
+
+    @staticmethod
+    def _has_lexical_relevance(query: str, content: str) -> bool:
+        """Reject unrelated chunks when embeddings are hash-based."""
+        stop_words = {
+            "a",
+            "about",
+            "an",
+            "and",
+            "are",
+            "as",
+            "at",
+            "be",
+            "by",
+            "can",
+            "could",
+            "did",
+            "do",
+            "does",
+            "for",
+            "from",
+            "get",
+            "got",
+            "had",
+            "has",
+            "have",
+            "help",
+            "how",
+            "i",
+            "in",
+            "is",
+            "it",
+            "me",
+            "my",
+            "need",
+            "of",
+            "on",
+            "or",
+            "our",
+            "please",
+            "show",
+            "tell",
+            "the",
+            "this",
+            "to",
+            "want",
+            "we",
+            "what",
+            "when",
+            "where",
+            "which",
+            "who",
+            "why",
+            "will",
+            "with",
+            "would",
+            "you",
+            "your",
+        }
+
+        def normalized_terms(text: str) -> set[str]:
+            terms: set[str] = set()
+            for token in re.findall(r"[a-z0-9]+", text.lower()):
+                if len(token) < 3 or token in stop_words:
+                    continue
+
+                if token.endswith("ies") and len(token) > 4:
+                    token = token[:-3] + "y"
+                elif token.endswith("ing") and len(token) > 5:
+                    token = token[:-3]
+                    if len(token) > 3 and token[-1] == token[-2]:
+                        token = token[:-1]
+                elif token.endswith("ed") and len(token) > 4:
+                    token = token[:-2]
+                elif token.endswith("es") and len(token) > 4:
+                    token = token[:-2]
+                elif (
+                    token.endswith("s")
+                    and len(token) > 3
+                    and not token.endswith(("ss", "us", "is"))
+                ):
+                    token = token[:-1]
+
+                terms.add(token)
+            return terms
+
+        query_terms = normalized_terms(query)
+        if not query_terms:
+            return False
+
+        overlap = query_terms & normalized_terms(content)
+        minimum_overlap = 1 if len(query_terms) <= 3 else 2
+        return len(overlap) >= minimum_overlap
 
     async def _build_sources(self, chunks: list[RetrievedChunk]) -> list[dict[str, Any]]:
         names: dict[int, str] = {}

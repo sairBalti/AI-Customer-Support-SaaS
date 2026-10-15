@@ -214,6 +214,7 @@ def get_chat_service(
     embeddings: Annotated[EmbeddingProvider, Depends(get_embedding_provider_dep)],
     vectors: Annotated[VectorStore, Depends(get_vector_store_dep)],
     llm: Annotated[LlmClient, Depends(get_llm_client_dep)],
+    ticket_service: Annotated[TicketService, Depends(get_ticket_service)],
 ) -> ChatService:
     return ChatService(
         sessions=SQLAlchemyChatSessionRepository(session),
@@ -224,6 +225,8 @@ def get_chat_service(
         llm=llm,
         audit_logger=audit_logger,
         top_k=settings.chat_top_k,
+        ticket_service=ticket_service,
+        lexical_relevance_guard=settings.embedding_provider.lower() == "hashing",
     )
 
 
