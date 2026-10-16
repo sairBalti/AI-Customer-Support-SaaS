@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, cast
 
 from sqlalchemy import Select, func, or_, select
 from sqlalchemy.exc import IntegrityError
@@ -228,7 +228,8 @@ class SQLAlchemyCompanyRepository(CompanyRepository):
         stmt = stmt.offset(max(page - 1, 0) * page_size).limit(page_size)
 
         result = await self._session.scalars(stmt)
-        items = [company_to_entity(model) for model in result.all()]
+        models = cast(list[CompanyModel], result.all())
+        items = [company_to_entity(model) for model in models]
         return items, total
 
     async def _get_by_attr(
