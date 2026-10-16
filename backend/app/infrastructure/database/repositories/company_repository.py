@@ -227,8 +227,8 @@ class SQLAlchemyCompanyRepository(CompanyRepository):
         stmt = stmt.order_by(primary, tie_break)
         stmt = stmt.offset(max(page - 1, 0) * page_size).limit(page_size)
 
-        result = await self._session.execute(stmt)
-        items = [company_to_entity(row) for row in result.scalars().all()]
+        result = await self._session.scalars(stmt)
+        items = [company_to_entity(model) for model in result.all()]
         return items, total
 
     async def _get_by_attr(
