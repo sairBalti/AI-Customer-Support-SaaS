@@ -39,13 +39,82 @@ from app.domain.exceptions.chat import (
     ChatOperationForbiddenError,
     ChatValidationError,
 )
-from app.domain.interfaces.repositories.chat_message_repository import ChatMessageRepository
-from app.domain.interfaces.repositories.chat_session_repository import ChatSessionRepository
-from app.domain.interfaces.repositories.document_repository import DocumentRepository
+from app.domain.interfaces.repositories.chat_message_repository import (
+    ChatMessageRepository,
+)
+from app.domain.interfaces.repositories.chat_session_repository import (
+    ChatSessionRepository,
+)
+from app.domain.interfaces.repositories.document_repository import (
+    DocumentRepository,
+)
 from app.domain.interfaces.services.audit_logger import AuditLogger
 from app.domain.interfaces.services.embedding_service import EmbeddingProvider
 from app.domain.interfaces.services.llm_client import LlmChatTurn, LlmClient
 from app.domain.interfaces.services.vector_store import VectorStore
+
+
+def _classify_escalation_reply(content: str) -> str:
+    """Classify an explicit customer response to a pending ticket offer."""
+    normalized = re.sub(r"[^a-z0-9\s]", " ", content.casefold())
+    normalized = " ".join(normalized.split())
+
+    affirmative = {
+        "yes",
+        "yes please",
+        "yes create a ticket",
+        "please create a ticket",
+        "create a ticket",
+        "open a ticket",
+        "contact a human",
+        "human agent",
+        "human support",
+        "speak to a human",
+        "speak to a human agent",
+        "talk to a human",
+        "talk to a human agent",
+        "continue",
+        "continue with this question",
+        "i want to continue",
+        "i want to continue with this question",
+        "yeah",
+        "yep",
+        "sure",
+        "absolutely",
+        "please do",
+        "go ahead",
+    }
+
+    negative = {
+        "no",
+        "no thanks",
+        "no thank you",
+        "nope",
+        "nah",
+        "do not create a ticket",
+        "dont create a ticket",
+        "don t create a ticket",
+        "cancel",
+        "not now",
+        "no human agent",
+        "i do not want a ticket",
+        "i dont want a ticket",
+        "i don t want a ticket",
+        "i do not need a ticket",
+        "i dont need a ticket",
+        "i don t need a ticket",
+        "not interested",
+        "leave it",
+        "forget it",
+    }
+
+    if normalized in affirmative:
+        return "yes"
+
+    if normalized in negative:
+        return "no"
+
+    return "unclear"
 
 
 class ChatService:
@@ -81,15 +150,20 @@ class ChatService:
         """Persist queued audit events on the current session before commit."""
         if not self._pending_audits:
             return
+
         events = list(self._pending_audits)
         for event in events:
             await self._audit.log(**event)
+
         self._pending_audits.clear()
+
         if self._ticket_service is not None:
             await self._ticket_service.flush_audits()
 
     def discard_audits(self) -> None:
+        """Discard queued audit events."""
         self._pending_audits.clear()
+
         if self._ticket_service is not None:
             self._ticket_service.discard_audits()
 
@@ -100,9 +174,12 @@ class ChatService:
     ) -> ChatSession:
         ensure_permissions(actor, "chat.start")
         company_id = self._require_company_id(actor)
+
         if actor.user_id is None:
             raise ChatValidationError("Authenticated user is required.")
+
         now = datetime.now(UTC)
+
         session = await self._sessions.create(
             {
                 "company_id": company_id,
@@ -124,12 +201,14 @@ class ChatService:
                 "metadata": {},
             }
         )
+
         self._queue_audit(
             action="chat.conversation.create",
             entity_id=session.session_id,
             company_id=company_id,
             user_id=actor.user_id,
         )
+
         return session
 
     async def list_conversations(
@@ -141,9 +220,9 @@ class ChatService:
     ) -> list[ChatSession]:
         ensure_permissions(actor, "chat.read")
         company_id = self._require_company_id(actor)
-        customer_id = None
-        if self._is_customer(actor):
-            customer_id = actor.user_id
+
+        customer_id = actor.user_id if self._is_customer(actor) else None
+
         return await self._sessions.list_by_company(
             company_id,
             customer_id=customer_id,
@@ -157,30 +236,45 @@ class ChatService:
         actor: RequestActor,
     ) -> tuple[ChatSession, list[ChatMessage]]:
         ensure_permissions(actor, "chat.read")
-        session = await self._load_conversation_for_actor(conversation_id, actor)
+
+        session = await self._load_conversation_for_actor(
+            conversation_id,
+            actor,
+        )
+
         messages = await self._messages.list_by_session(
             session.session_id,
             company_id=session.company_id,
         )
+
         return session, messages
 
-    async def delete_conversation(self, conversation_id: int, actor: RequestActor) -> None:
+    async def delete_conversation(
+        self,
+        conversation_id: int,
+        actor: RequestActor,
+    ) -> None:
         ensure_permissions(actor, "chat.start")
+
         session = await self._load_conversation_for_actor(
             conversation_id,
             actor,
             require_write=True,
         )
+
         await self._messages.delete_by_session(
             session.session_id,
             company_id=session.company_id,
         )
+
         deleted = await self._sessions.delete_by_id(
             session.session_id,
             company_id=session.company_id,
         )
+
         if not deleted:
             raise ChatNotFoundError()
+
         self._queue_audit(
             action="chat.conversation.delete",
             entity_id=session.session_id,
@@ -191,19 +285,27 @@ class ChatService:
     async def delete_all_conversations(self, actor: RequestActor) -> int:
         ensure_permissions(actor, "chat.start")
         company_id = self._require_company_id(actor)
+
         customer_id = actor.user_id if self._is_customer(actor) else None
+
         sessions = await self._sessions.list_by_company(
             company_id,
             customer_id=customer_id,
             limit=10_000,
             offset=0,
         )
+
         for session in sessions:
             await self._messages.delete_by_session(
                 session.session_id,
                 company_id=company_id,
             )
-        count = await self._sessions.delete_by_company(company_id, customer_id=customer_id)
+
+        count = await self._sessions.delete_by_company(
+            company_id,
+            customer_id=customer_id,
+        )
+
         self._queue_audit(
             action="chat.conversation.delete_all",
             entity_id=0,
@@ -211,6 +313,7 @@ class ChatService:
             user_id=actor.user_id,
             metadata={"deleted_count": count},
         )
+
         return count
 
     async def send_message(
@@ -219,21 +322,31 @@ class ChatService:
         data: SendChatMessageInput,
         actor: RequestActor,
     ) -> ChatAnswerResult:
+        """Process a customer message and optionally escalate with consent."""
         ensure_permissions(actor, "chat.start")
+
         content = (data.content or "").strip()
         if not content:
             raise ChatValidationError("message content is required.")
+
         session = await self._load_conversation_for_actor(
             conversation_id,
             actor,
             require_write=True,
         )
+
         if not session.accepts_messages:
             raise ChatOperationForbiddenError(
                 "This conversation is closed and cannot accept new messages.",
             )
 
         now = datetime.now(UTC)
+
+        # Copy the session metadata so updates do not mutate the original
+        # dictionary before they are persisted through the repository.
+        session_metadata = dict(session.metadata or {})
+        pending = session_metadata.get("pending_escalation")
+
         user_msg = await self._messages.create(
             {
                 "session_id": session.session_id,
@@ -249,71 +362,166 @@ class ChatService:
                 "estimated_cost": Decimal("0"),
                 "retrieved_chunks": [],
                 "citations": [],
-                "metadata": {},
+                "metadata": dict(session_metadata),
                 "is_escalated": False,
                 "created_at": now,
             }
         )
 
-        chunks = await self._retrieve_company_chunks(
-            company_id=session.company_id,
-            query=content,
-        )
-        sources = await self._build_sources(chunks)
-        used_knowledge = bool(chunks)
-        escalated = False
-        if not used_knowledge and self._is_customer(actor) and self._ticket_service:
-            if session.ticket_id is None:
-                await self._ticket_service.create_from_conversation(
-                    session.session_id,
-                    EscalateConversationInput(
-                        subject=f"AI could not answer: {content[:70]}",
-                        description=(
-                            "Automatic escalation: no relevant company knowledge was found.\n\n"
-                            f"Customer question: {content}"
-                        ),
-                        source_message_id=user_msg.message_id,
-                    ),
-                    actor,
-                )
-            escalated = True
         started = time.perf_counter()
 
-        if not used_knowledge:
-            answer = NO_CONTEXT_ANSWER
-            llm_provider = self._llm.provider_name
-            llm_model = self._llm.model_name
-            prompt_tokens = 0
-            completion_tokens = max(1, len(answer) // 4)
-        else:
-            history_messages = await self._messages.list_by_session(
-                session.session_id,
-                company_id=session.company_id,
-                limit=20,
-            )
-            history = [
-                LlmChatTurn(
-                    role="user" if m.sender_type == ChatSenderType.CUSTOMER else "assistant",
-                    content=m.message_text,
+        sources: list[dict[str, Any]] = []
+        chunks: list[RetrievedChunk] = []
+        used_knowledge = False
+        escalated = False
+        ticket_created = False
+        escalation_state = "none"
+
+        llm_provider = self._llm.provider_name
+        llm_model = self._llm.model_name
+        prompt_tokens = 0
+        completion_tokens = 0
+
+        # If a consent request is pending, interpret the customer's next
+        # message as a response to that request before running RAG again.
+        if pending is not None and self._is_customer(actor):
+            decision = _classify_escalation_reply(content)
+
+            if decision == "yes":
+                if self._ticket_service is None:
+                    # Keep the pending request so consent is not lost.
+                    answer = (
+                        "I understand that you want human support, but ticket "
+                        "creation is currently unavailable. Please contact "
+                        "the support team directly or try again later."
+                    )
+                    escalation_state = "pending"
+
+                else:
+                    original_question = str(pending["question"])
+                    original_message_id = int(pending["source_message_id"])
+
+                    ticket = await self._ticket_service.create_from_conversation(
+                        session.session_id,
+                        EscalateConversationInput(
+                            subject=("AI could not answer: " f"{original_question[:70]}"),
+                            description=(
+                                "Customer requested human support after the AI "
+                                "could not find relevant company knowledge.\n\n"
+                                f"Original customer question: {original_question}"
+                            ),
+                            source_message_id=original_message_id,
+                        ),
+                        actor,
+                    )
+
+                    # Clear pending consent only after ticket creation succeeds.
+                    session_metadata.pop("pending_escalation", None)
+
+                    answer = (
+                        f"Your support ticket {ticket.ticket_number} has been "
+                        "created successfully. A human support agent will "
+                        "respond within 1–6 hours."
+                    )
+
+                    escalated = True
+                    ticket_created = True
+                    escalation_state = "ticket_created"
+
+            elif decision == "no":
+                session_metadata.pop("pending_escalation", None)
+
+                answer = (
+                    "No problem. I haven't created a support ticket. "
+                    "You can ask another question whenever you're ready."
                 )
-                for m in history_messages
-                if m.message_id != user_msg.message_id
-                and m.sender_type in {ChatSenderType.CUSTOMER, ChatSenderType.AI}
-            ]
-            context = format_retrieval_context(chunks)
-            generation = await self._llm.generate_response(
-                system_prompt=GROUNDED_SYSTEM_PROMPT,
-                user_message=content,
-                context=context,
-                history=history,
+
+                escalation_state = "declined"
+
+            else:
+                # Do not run retrieval or create a ticket for an unclear reply.
+                answer = (
+                    "Would you like me to create a support ticket so a human "
+                    "support agent can help with your original question? "
+                    "Please reply yes or no."
+                )
+
+                escalation_state = "pending"
+
+        else:
+            # No pending consent request: answer using company-scoped RAG.
+            chunks = await self._retrieve_company_chunks(
+                company_id=session.company_id,
+                query=content,
             )
-            answer = (generation.content or "").strip() or NO_CONTEXT_ANSWER
-            llm_provider = generation.provider
-            llm_model = generation.model
-            prompt_tokens = int(generation.prompt_tokens)
-            completion_tokens = int(generation.completion_tokens)
+
+            sources = await self._build_sources(chunks)
+            used_knowledge = bool(chunks)
+
+            if not used_knowledge:
+                if self._is_customer(actor) and self._ticket_service is not None:
+                    # Save the original unanswered message ID. The later
+                    # consent reply must not replace this source message.
+                    session_metadata["pending_escalation"] = {
+                        "question": content,
+                        "source_message_id": user_msg.message_id,
+                    }
+
+                    answer = NO_CONTEXT_ANSWER
+                    escalation_state = "pending"
+
+                else:
+                    answer = (
+                        "I couldn't find relevant information in the knowledge "
+                        "base to answer that question. Please contact your "
+                        "support team for further assistance."
+                    )
+
+            else:
+                history_messages = await self._messages.list_by_session(
+                    session.session_id,
+                    company_id=session.company_id,
+                    limit=20,
+                )
+
+                history = [
+                    LlmChatTurn(
+                        role=(
+                            "user"
+                            if message.sender_type == ChatSenderType.CUSTOMER
+                            else "assistant"
+                        ),
+                        content=message.message_text,
+                    )
+                    for message in history_messages
+                    if (
+                        message.message_id != user_msg.message_id
+                        and message.sender_type
+                        in {
+                            ChatSenderType.CUSTOMER,
+                            ChatSenderType.AI,
+                        }
+                    )
+                ]
+
+                context = format_retrieval_context(chunks)
+
+                generation = await self._llm.generate_response(
+                    system_prompt=GROUNDED_SYSTEM_PROMPT,
+                    user_message=content,
+                    context=context,
+                    history=history,
+                )
+
+                answer = (generation.content or "").strip() or NO_CONTEXT_ANSWER
+
+                llm_provider = generation.provider
+                llm_model = generation.model
+                prompt_tokens = int(generation.prompt_tokens)
+                completion_tokens = int(generation.completion_tokens)
 
         elapsed_ms = int((time.perf_counter() - started) * 1000)
+
         assistant_msg = await self._messages.create(
             {
                 "session_id": session.session_id,
@@ -333,43 +541,51 @@ class ChatService:
                 "response_time_ms": elapsed_ms,
                 "retrieved_chunks": [
                     {
-                        "chunk_uuid": c.chunk_uuid,
-                        "document_id": c.document_id,
-                        "score": c.score,
+                        "chunk_uuid": chunk.chunk_uuid,
+                        "document_id": chunk.document_id,
+                        "score": chunk.score,
                     }
-                    for c in chunks
+                    for chunk in chunks
                 ],
                 "citations": sources,
-                "metadata": {"used_knowledge": used_knowledge},
+                "metadata": {
+                    "used_knowledge": used_knowledge,
+                    "pending_escalation": ("pending_escalation" in session_metadata),
+                    "escalation_state": escalation_state,
+                    "ticket_created": ticket_created,
+                },
                 "is_escalated": escalated,
                 "created_at": datetime.now(UTC),
             }
         )
 
-        title = session.title
-        if not title:
-            title = content[:80]
+        title = session.title or content[:80]
 
+        # Persist metadata on the session, not only on the message.
+        # This is required for the consent flow to survive subsequent requests.
         updated = await self._sessions.update(
             session.session_id,
             {
                 "title": title,
                 "total_messages": session.total_messages + 2,
-                "total_prompt_tokens": session.total_prompt_tokens + prompt_tokens,
-                "total_completion_tokens": session.total_completion_tokens + completion_tokens,
-                "total_tokens": session.total_tokens + prompt_tokens + completion_tokens,
+                "total_prompt_tokens": (session.total_prompt_tokens + prompt_tokens),
+                "total_completion_tokens": (session.total_completion_tokens + completion_tokens),
+                "total_tokens": (session.total_tokens + prompt_tokens + completion_tokens),
                 "last_message_at": datetime.now(UTC),
+                "metadata": session_metadata,
                 "session_status": (
                     ChatSessionStatus.ESCALATED if escalated else session.session_status
                 ),
-                "escalation_required": escalated or session.escalation_required,
+                "escalation_required": (escalated or session.escalation_required),
                 "ai_provider": llm_provider,
                 "ai_model": llm_model,
                 "updated_at": datetime.now(UTC),
             },
             company_id=session.company_id,
         )
-        assert updated is not None
+
+        if updated is None:
+            raise ChatNotFoundError()
 
         self._queue_audit(
             action="chat.message.send",
@@ -380,8 +596,11 @@ class ChatService:
                 "used_knowledge": used_knowledge,
                 "sources": len(sources),
                 "provider": llm_provider,
+                "escalation_state": escalation_state,
+                "ticket_created": ticket_created,
             },
         )
+
         return ChatAnswerResult(
             conversation=updated,
             user_message=user_msg,
@@ -397,24 +616,32 @@ class ChatService:
         company_id: int,
         query: str,
     ) -> list[RetrievedChunk]:
-        """Internal RAG retrieval — always filtered by company_id (no knowledge.search)."""
+        """Retrieve chunks while enforcing company and document boundaries."""
         query_vectors = await self._embeddings.embed_texts([query])
+
         hits = await self._vectors.similarity_search(
             company_id=company_id,
             query_embedding=query_vectors[0],
             top_k=self._top_k,
         )
+
         results: list[RetrievedChunk] = []
+
         for hit in hits:
             meta = hit.metadata or {}
+
             if self._lexical_relevance_guard and not self._has_lexical_relevance(
-                query, hit.content
+                query,
+                hit.content,
             ):
                 continue
+
             if int(meta.get("company_id", -1)) != int(company_id):
                 continue
+
             doc_id = int(meta.get("document_id", 0))
             document = await self._documents.get_by_id(doc_id)
+
             if (
                 document is None
                 or document.is_deleted
@@ -422,6 +649,7 @@ class ChatService:
                 or document.company_id != company_id
             ):
                 continue
+
             results.append(
                 RetrievedChunk(
                     document_id=doc_id,
@@ -432,12 +660,13 @@ class ChatService:
                     company_id=company_id,
                     chunk_index=int(meta.get("chunk_index", 0)),
                     metadata=dict(meta),
-                    source_filename=str(meta.get("source_filename") or "") or None,
+                    source_filename=(str(meta.get("source_filename") or "") or None),
                     page_number=(
                         int(meta["page_number"]) if meta.get("page_number") is not None else None
                     ),
                 )
             )
+
         return results
 
     @staticmethod
@@ -501,6 +730,7 @@ class ChatService:
 
         def normalized_terms(text: str) -> set[str]:
             terms: set[str] = set()
+
             for token in re.findall(r"[a-z0-9]+", text.lower()):
                 if len(token) < 3 or token in stop_words:
                     continue
@@ -523,6 +753,7 @@ class ChatService:
                     token = token[:-1]
 
                 terms.add(token)
+
             return terms
 
         query_terms = normalized_terms(query)
@@ -531,17 +762,29 @@ class ChatService:
 
         overlap = query_terms & normalized_terms(content)
         minimum_overlap = 1 if len(query_terms) <= 3 else 2
+
         return len(overlap) >= minimum_overlap
 
-    async def _build_sources(self, chunks: list[RetrievedChunk]) -> list[dict[str, Any]]:
+    async def _build_sources(
+        self,
+        chunks: list[RetrievedChunk],
+    ) -> list[dict[str, Any]]:
+        """Build citations using the names of retrieved documents."""
         names: dict[int, str] = {}
+
         for chunk in chunks:
             if chunk.document_id in names:
                 continue
+
             document = await self._documents.get_by_id(chunk.document_id)
+
             if document is not None:
                 names[chunk.document_id] = document.document_name
-        return citations_from_chunks(chunks, document_names=names)
+
+        return citations_from_chunks(
+            chunks,
+            document_names=names,
+        )
 
     async def _load_conversation_for_actor(
         self,
@@ -550,25 +793,41 @@ class ChatService:
         *,
         require_write: bool = False,
     ) -> ChatSession:
+        """Load a conversation while enforcing tenant and customer access."""
         company_id = self._require_company_id(actor)
-        session = await self._sessions.get_by_id(conversation_id, company_id=company_id)
+
+        session = await self._sessions.get_by_id(
+            conversation_id,
+            company_id=company_id,
+        )
+
         if session is None:
             # Hide cross-tenant existence.
             other = await self._sessions.get_by_id(conversation_id)
+
             if other is not None and other.company_id != company_id:
                 raise ChatAccessDeniedError(
                     "Cannot access a conversation belonging to another company.",
                 )
+
             raise ChatNotFoundError()
+
         if self._is_customer(actor) and session.customer_id != actor.user_id:
-            raise ChatAccessDeniedError("Customers may only access their own conversations.")
+            raise ChatAccessDeniedError(
+                "Customers may only access their own conversations.",
+            )
+
         if require_write and self._is_customer(actor) and session.customer_id != actor.user_id:
-            raise ChatAccessDeniedError("Customers may only message their own conversations.")
+            raise ChatAccessDeniedError(
+                "Customers may only message their own conversations.",
+            )
+
         return session
 
     def _require_company_id(self, actor: RequestActor) -> int:
         if actor.company_id is None:
             raise ChatValidationError("company context is required.")
+
         return int(actor.company_id)
 
     @staticmethod
@@ -584,6 +843,7 @@ class ChatService:
         user_id: int | None,
         metadata: dict[str, Any] | None = None,
     ) -> None:
+        """Queue an audit event for persistence."""
         self._pending_audits.append(
             {
                 "action": action,

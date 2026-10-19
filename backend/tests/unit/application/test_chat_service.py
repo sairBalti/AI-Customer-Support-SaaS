@@ -11,7 +11,6 @@ from app.application.context import RequestActor
 from app.application.dto.chat import CreateConversationInput, SendChatMessageInput
 from app.application.services.chat.chat_service import ChatService
 from app.application.services.chat.prompts import (
-    NO_CONTEXT_ANSWER,
     citations_from_chunks,
     format_retrieval_context,
 )
@@ -309,7 +308,11 @@ async def test_chat_no_context_fallback_and_tenant_guard(tmp_path) -> None:
         actor,
     )
     assert result.used_knowledge is False
-    assert result.answer == NO_CONTEXT_ANSWER
+    assert result.answer == (
+        "I couldn't find relevant information in the knowledge "
+        "base to answer that question. Please contact your "
+        "support team for further assistance."
+    )
     assert result.sources == []
 
     outsider = RequestActor(
@@ -488,6 +491,16 @@ async def test_delete_all_conversations_for_customer_only() -> None:
     assert len(await service.list_conversations(other)) == 1
 
 
+class _FakeTicket:
+    def __init__(
+        self,
+        ticket_id: int,
+        ticket_number: str,
+    ) -> None:
+        self.ticket_id = ticket_id
+        self.ticket_number = ticket_number
+
+
 class _TicketService:
     """Fake ticket service for chat escalation tests."""
 
@@ -502,17 +515,31 @@ class _TicketService:
         actor: RequestActor,
     ) -> Any:
         self.calls.append((conversation_id, data, actor))
+
         session = self.sessions.rows[conversation_id]
-        object.__setattr__(session, "ticket_id", 100 + len(self.calls))
-        return object()
+        ticket_id = 100 + len(self.calls)
+
+        object.__setattr__(session, "ticket_id", ticket_id)
+        object.__setattr__(session, "escalation_required", True)
+        object.__setattr__(
+            session,
+            "session_status",
+            ChatSessionStatus.ESCALATED,
+        )
+
+        return _FakeTicket(
+            ticket_id=ticket_id,
+            ticket_number=f"SUP-2026-0001-{ticket_id:06d}",
+        )
 
 
 @pytest.mark.asyncio
-async def test_chat_no_context_escalates_and_creates_ticket(
+async def test_chat_no_context_requires_consent_before_ticket_creation(
     tmp_path,
 ) -> None:
     sessions = _SessionRepo()
     tickets = _TicketService(sessions)
+
     service = ChatService(
         sessions=sessions,
         messages=_MessageRepo(),
@@ -523,13 +550,18 @@ async def test_chat_no_context_escalates_and_creates_ticket(
         audit_logger=_Audit(),
         ticket_service=tickets,
     )
+
     actor = RequestActor(
         user_id=1,
         company_id=1,
         role_name="CUSTOMER",
         permissions=frozenset({"chat.start", "chat.read"}),
     )
-    conversation = await service.create_conversation(CreateConversationInput(), actor)
+
+    conversation = await service.create_conversation(
+        CreateConversationInput(),
+        actor,
+    )
 
     first = await service.send_message(
         conversation.session_id,
@@ -537,19 +569,141 @@ async def test_chat_no_context_escalates_and_creates_ticket(
         actor,
     )
 
+    # The first response requests consent instead of creating a ticket.
     assert first.used_knowledge is False
-    assert first.answer == NO_CONTEXT_ANSWER
-    assert first.assistant_message.is_escalated is True
-    assert first.conversation.escalation_required is True
-    assert first.conversation.session_status == ChatSessionStatus.ESCALATED
-    assert first.conversation.ticket_id is not None
+    assert "reply yes or no" in first.answer.lower()
+    assert first.assistant_message.is_escalated is False
+    assert first.conversation.escalation_required is False
+    assert first.conversation.session_status == ChatSessionStatus.ACTIVE
+    assert first.conversation.ticket_id is None
+    assert tickets.calls == []
+
+    pending = first.conversation.metadata["pending_escalation"]
+    assert pending["question"] == "How do I reset my password?"
+    assert pending["source_message_id"] == first.user_message.message_id
+
+    # The customer explicitly confirms.
+    second = await service.send_message(
+        conversation.session_id,
+        SendChatMessageInput(content="Yes, please"),
+        actor,
+    )
+
     assert len(tickets.calls) == 1
+    assert "SUP-2026-0001-000101" in second.answer
+    assert "1–6 hours" in second.answer
+    assert second.assistant_message.is_escalated is True
+    assert second.conversation.escalation_required is True
+    assert second.conversation.session_status == ChatSessionStatus.ESCALATED
+    assert second.conversation.ticket_id is not None
+    assert "pending_escalation" not in second.conversation.metadata
 
     ticket_conversation_id, ticket_data, ticket_actor = tickets.calls[0]
+
     assert ticket_conversation_id == conversation.session_id
-    assert "reset my password" in ticket_data.description
+    assert "How do I reset my password?" in ticket_data.description
     assert ticket_data.source_message_id == first.user_message.message_id
     assert ticket_actor == actor
+
+
+@pytest.mark.asyncio
+async def test_chat_unclear_escalation_reply_keeps_request_pending(
+    tmp_path,
+) -> None:
+    sessions = _SessionRepo()
+    tickets = _TicketService(sessions)
+
+    service = ChatService(
+        sessions=sessions,
+        messages=_MessageRepo(),
+        documents=_DocRepo({}),
+        embeddings=HashingEmbeddingProvider(dimension=16),
+        vectors=LocalPersistentVectorStore(tmp_path),
+        llm=FakeLlmClient(),
+        audit_logger=_Audit(),
+        ticket_service=tickets,
+    )
+
+    actor = RequestActor(
+        user_id=1,
+        company_id=1,
+        role_name="CUSTOMER",
+        permissions=frozenset({"chat.start", "chat.read"}),
+    )
+
+    conversation = await service.create_conversation(
+        CreateConversationInput(),
+        actor,
+    )
+
+    await service.send_message(
+        conversation.session_id,
+        SendChatMessageInput(content="What is the weather on Mars?"),
+        actor,
+    )
+
+    result = await service.send_message(
+        conversation.session_id,
+        SendChatMessageInput(content="Maybe later"),
+        actor,
+    )
+
+    assert tickets.calls == []
+    assert "reply yes or no" in result.answer.lower()
+    assert "pending_escalation" in result.conversation.metadata
+    assert result.conversation.ticket_id is None
+    assert result.conversation.escalation_required is False
+    assert result.conversation.session_status == ChatSessionStatus.ACTIVE
+
+
+@pytest.mark.asyncio
+async def test_chat_declining_escalation_does_not_create_ticket(
+    tmp_path,
+) -> None:
+    sessions = _SessionRepo()
+    tickets = _TicketService(sessions)
+
+    service = ChatService(
+        sessions=sessions,
+        messages=_MessageRepo(),
+        documents=_DocRepo({}),
+        embeddings=HashingEmbeddingProvider(dimension=16),
+        vectors=LocalPersistentVectorStore(tmp_path),
+        llm=FakeLlmClient(),
+        audit_logger=_Audit(),
+        ticket_service=tickets,
+    )
+
+    actor = RequestActor(
+        user_id=1,
+        company_id=1,
+        role_name="CUSTOMER",
+        permissions=frozenset({"chat.start", "chat.read"}),
+    )
+
+    conversation = await service.create_conversation(
+        CreateConversationInput(),
+        actor,
+    )
+
+    await service.send_message(
+        conversation.session_id,
+        SendChatMessageInput(content="What is the weather on Mars?"),
+        actor,
+    )
+
+    result = await service.send_message(
+        conversation.session_id,
+        SendChatMessageInput(content="No, thanks"),
+        actor,
+    )
+
+    assert tickets.calls == []
+    assert "haven't created a support ticket" in result.answer.lower()
+    assert "pending_escalation" not in result.conversation.metadata
+    assert result.conversation.ticket_id is None
+    assert result.conversation.escalation_required is False
+    assert result.conversation.session_status == ChatSessionStatus.ACTIVE
 
 
 @pytest.mark.asyncio

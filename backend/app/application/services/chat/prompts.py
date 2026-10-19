@@ -5,8 +5,10 @@ from __future__ import annotations
 from app.domain.entities.knowledge_chunk import RetrievedChunk
 
 NO_CONTEXT_ANSWER = (
-    "I do not have enough information in the company knowledge base "
-    "to answer that question. Please rephrase, or contact a human support agent."
+    "I couldn’t find any documents in our knowledge base related to your "
+    "question. Would you like to speak with a human support agent? "
+    "If you’d like to continue with this question, I can create a support "
+    "ticket so our team can help. Please reply yes or no."
 )
 
 GROUNDED_SYSTEM_PROMPT = """You are a customer support assistant for a single company.

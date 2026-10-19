@@ -201,13 +201,22 @@ async def test_chat_rag_sources_and_isolation(
 
 
 @pytest.mark.asyncio
-async def test_chat_no_context_fallback_and_rbac(
+async def test_chat_no_context_requires_consent_and_respects_rbac(
     api_client: AsyncClient,
     chat_seed: dict,
 ) -> None:
-    cust = await _token(api_client, chat_seed["emails"]["customer_a"], chat_seed["password"])
-    agent = await _token(api_client, chat_seed["emails"]["agent"], chat_seed["password"])
+    cust = await _token(
+        api_client,
+        chat_seed["emails"]["customer_a"],
+        chat_seed["password"],
+    )
+    agent = await _token(
+        api_client,
+        chat_seed["emails"]["agent"],
+        chat_seed["password"],
+    )
 
+    # Non-customer users must not create customer conversations.
     denied_agent = await api_client.post(
         "/api/v1/chat/conversations",
         headers=_auth(agent),
@@ -215,49 +224,99 @@ async def test_chat_no_context_fallback_and_rbac(
     )
     assert denied_agent.status_code == 403
 
-    created = await api_client.post(
+    # Scenario 1: the customer declines ticket creation.
+    declined_conversation = await api_client.post(
         "/api/v1/chat/conversations",
         headers=_auth(cust),
-        json={},
+        json={"title": "Declined support request"},
     )
-    assert created.status_code == 201, created.text
-    conversation_id = created.json()["data"]["conversation_id"]
+    assert declined_conversation.status_code == 201, declined_conversation.text
+    declined_id = declined_conversation.json()["data"]["conversation_id"]
 
-    answered = await api_client.post(
-        f"/api/v1/chat/conversations/{conversation_id}/messages",
+    first_answer = await api_client.post(
+        f"/api/v1/chat/conversations/{declined_id}/messages",
         headers=_auth(cust),
         json={"content": "Do you ship to Mars?"},
     )
-    assert answered.status_code == 200, answered.text
-    data = answered.json()["data"]
-    assert data["used_knowledge"] is False
-    assert data["sources"] == []
-    assert "knowledge base" in data["answer"].lower()
+    assert first_answer.status_code == 200, first_answer.text
 
-    # The no-context customer question should create and link a real ticket.
-    detail = await api_client.get(
-        f"/api/v1/chat/conversations/{conversation_id}",
-        headers=_auth(cust),
-    )
-    assert detail.status_code == 200, detail.text
-    conversation = detail.json()["data"]
-    messages = conversation["messages"]
-    assert len(messages) >= 2
+    first_data = first_answer.json()["data"]
+    assert first_data["used_knowledge"] is False
+    assert first_data["sources"] == []
+    assert "yes or no" in first_data["answer"].lower()
 
-    ticket_response = await api_client.get(
+    # The unsupported question must not create a ticket automatically.
+    tickets_response = await api_client.get(
         "/api/v1/tickets",
         headers=_auth(cust),
     )
-    assert ticket_response.status_code == 200, ticket_response.text
-    ticket_items = ticket_response.json()["data"]["items"]
+    assert tickets_response.status_code == 200, tickets_response.text
+
+    tickets = tickets_response.json()["data"]["items"]
+    assert not any(ticket.get("conversation_id") == declined_id for ticket in tickets)
+
+    declined_reply = await api_client.post(
+        f"/api/v1/chat/conversations/{declined_id}/messages",
+        headers=_auth(cust),
+        json={"content": "No, thanks"},
+    )
+    assert declined_reply.status_code == 200, declined_reply.text
+
+    declined_data = declined_reply.json()["data"]
+    assert "ticket" in declined_data["answer"].lower()
+
+    tickets_response = await api_client.get(
+        "/api/v1/tickets",
+        headers=_auth(cust),
+    )
+    assert tickets_response.status_code == 200, tickets_response.text
+    tickets = tickets_response.json()["data"]["items"]
+
+    assert not any(ticket.get("conversation_id") == declined_id for ticket in tickets)
+
+    # Scenario 2: the customer explicitly accepts ticket creation.
+    accepted_conversation = await api_client.post(
+        "/api/v1/chat/conversations",
+        headers=_auth(cust),
+        json={"title": "Accepted support request"},
+    )
+    assert accepted_conversation.status_code == 201, accepted_conversation.text
+    accepted_id = accepted_conversation.json()["data"]["conversation_id"]
+
+    question = "Do you provide delivery to Mars?"
+    question_response = await api_client.post(
+        f"/api/v1/chat/conversations/{accepted_id}/messages",
+        headers=_auth(cust),
+        json={"content": question},
+    )
+    assert question_response.status_code == 200, question_response.text
+    assert question_response.json()["data"]["used_knowledge"] is False
+
+    accepted_reply = await api_client.post(
+        f"/api/v1/chat/conversations/{accepted_id}/messages",
+        headers=_auth(cust),
+        json={"content": "Yes, please"},
+    )
+    assert accepted_reply.status_code == 200, accepted_reply.text
+
+    accepted_data = accepted_reply.json()["data"]
+    assert "1–6 hours" in accepted_data["answer"] or "1-6 hours" in accepted_data["answer"]
+
+    # Confirm that exactly one ticket exists for the accepted conversation.
+    tickets_response = await api_client.get(
+        "/api/v1/tickets",
+        headers=_auth(cust),
+    )
+    assert tickets_response.status_code == 200, tickets_response.text
+
+    tickets = tickets_response.json()["data"]["items"]
     matching_tickets = [
-        ticket for ticket in ticket_items if ticket.get("conversation_id") == conversation_id
+        ticket for ticket in tickets if ticket.get("conversation_id") == accepted_id
     ]
 
     assert len(matching_tickets) == 1
     ticket = matching_tickets[0]
-    assert ticket["conversation_id"] == conversation_id
-    assert "Do you ship to Mars?" in ticket["description"]
+    assert question in ticket["description"]
 
 
 @pytest.mark.asyncio
